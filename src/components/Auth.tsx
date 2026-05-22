@@ -59,8 +59,16 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
         onAuthSuccess(finalUser);
       }, 1000);
     } catch (err: any) {
-      console.error(err);
-      setError('Gagal masuk menggunakan Google. Pastikan izin popup browser Anda aktif.');
+      console.error('Google login error detail:', err);
+      if (err.code === 'auth/popup-blocked') {
+        setError('Popup Google masuk diblokir oleh browser. Silakan izinkan popup untuk situs ini, atau buka aplikasi ini di tab baru (klik link di atas browser).');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('Domain aplikasi ini belum diotorisasi di Firebase Authentication. Harap tambahkan domain ini ke daftar "Authorized Domains" di Console Firebase Anda (Authentication > Settings).');
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        setError('Proses masuk Google dibatalkan.');
+      } else {
+        setError(`Gagal masuk menggunakan Google (${err.code || err.message || err}). Pastikan izin popup browser Anda aktif dan coba lagi.`);
+      }
     }
   };
 
