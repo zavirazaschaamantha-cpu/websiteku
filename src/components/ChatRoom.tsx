@@ -44,7 +44,7 @@ export default function ChatRoom({ user, events, participants }: ChatRoomProps) 
     if (selectedEventId === 'general') {
       return [
         { name: 'Aris Setiawan', role: 'Ketua Umum BEM', phone: '0812-7384-9902', email: 'bem@kampus.ac.id' },
-        { name: 'Nadia Putri', role: 'Sekretaris & Advokasi', phone: '0857-1122-3344', email: 'nadia.sek@bem.id' }
+        { name: 'Admin', role: 'Sekretaris & Advokasi', phone: '0857-1122-3344', email: 'admin@bem.id' }
       ];
     } else {
       // Event-specific simulation CP

@@ -261,7 +261,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
         try {
           await signInAnonymously(auth);
         } catch (authErr: any) {
-          if (authErr.code === 'auth/admin-restricted-operation') {
+          if (authErr.code === 'auth/admin-restricted-operation' || authErr.code === 'auth/operation-not-allowed') {
             console.log(
               "Firestore Sync Info: Anonymous authentication is disabled in your Firebase Console. " +
               "This is the standard secure default. Cloud state synchronization will become active " +
