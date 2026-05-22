@@ -14,6 +14,7 @@ import {
 import { Event, Participant, User, SaaSPlan } from '../types';
 import StudentDashboard from './StudentDashboard';
 import EventPlanner from './EventPlanner';
+import CertificateDesigner from './CertificateDesigner';
 
 interface DashboardProps {
   user: User;
@@ -29,7 +30,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
   
   // Navigation
   const [roleMode, setRoleMode] = useState<'panitia' | 'peserta'>(user.role === 'mahasiswa' ? 'peserta' : 'panitia');
-  const [activeTab, setActiveTab] = useState<'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas' | 'planner'>('ringkasan');
+  const [activeTab, setActiveTab] = useState<'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas' | 'planner' | 'sertifikat'>('ringkasan');
   
   // Event filtration
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
@@ -371,7 +372,29 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
   // Execute Ticketing QR Attendance Scan Simulation
   const handlePerformScan = (codeToScan?: string) => {
     setScanResult(null);
-    const code = (codeToScan || manualTicketInput).trim().toUpperCase();
+    let rawCode = (codeToScan || manualTicketInput).trim();
+    let code = rawCode.toUpperCase();
+
+    // Support scanning a full URL (e.g., if scanned from a phone camera opening a link)
+    if (rawCode.includes('?') || rawCode.includes('=')) {
+      try {
+        const paramString = rawCode.split('?')[1] || rawCode;
+        const params = new URLSearchParams(paramString);
+        const ticketParam = params.get('scan_ticket') || params.get('ticket') || params.get('code');
+        if (ticketParam) {
+          code = ticketParam.trim().toUpperCase();
+        }
+      } catch (urlErr) {
+        console.warn("Failed to extract ticket query param", urlErr);
+      }
+    }
+
+    // Support extracting TK-XXXX pattern from any URL or string if it's nested
+    const matchTk = /TK-[A-Z0-9]+/i.exec(rawCode);
+    if (matchTk) {
+      code = matchTk[0].toUpperCase();
+    }
+
     if (!code) {
       setScanResult({
         success: false,
@@ -835,6 +858,15 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                 </button>
 
                 <button
+                  id="menu-tab-sertifikat"
+                  onClick={() => setActiveTab('sertifikat')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'sertifikat' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
+                >
+                  <Award className="h-4 w-4" />
+                  <span>Desain Sertifikat</span>
+                </button>
+
+                <button
                   id="menu-tab-saas"
                   onClick={() => setActiveTab('saas')}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'saas' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
@@ -902,6 +934,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                   {activeTab === 'peserta' && 'Manajemen Database Peserta'}
                   {activeTab === 'scanner' && 'E-Tiket & Scanner Absensi'}
                   {activeTab === 'planner' && 'Perumusan Struktur & Rangkaian Acara (Planner)'}
+                  {activeTab === 'sertifikat' && 'Kustomisasi Desain E-Sertifikat'}
                   {activeTab === 'saas' && 'Status Bisnis & Informasi SWOT'}
                 </>
               )}
@@ -1068,6 +1101,86 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                 </button>
               </div>
 
+            </section>
+
+            {/* EVENT REPORT RECAP AND DOWNLOADS BY EVENT */}
+            <section className="bg-white p-6 border border-slate-150 rounded-3xl space-y-4 shadow-sm" id="event-reports-recap-section">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-3 gap-2">
+                <div>
+                  <h4 className="font-sans font-extrabold text-base text-slate-900 flex items-center space-x-1.5">
+                    <Download className="h-4 w-4 text-purple-600 animate-bounce" />
+                    <span>Rekapan Data Kehadiran per Acara</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Unduh file rekapitulasi / berita acara presensi pasca-acara secara mandiri per kegiatan.
+                  </p>
+                </div>
+                
+                <span className="text-[10px] font-mono text-slate-400 font-bold bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-150">
+                  Total Acara: {events.length}
+                </span>
+              </div>
+
+              {events.length === 0 ? (
+                <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-xs text-slate-400 font-semibold">Belum ada daftar acara untuk menampilkan laporan rekapan.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[600px]">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                        <th className="py-2.5 px-3">Nama Kegiatan / Ormawa</th>
+                        <th className="py-2.5 px-3">Tanggal & Waktu</th>
+                        <th className="py-2.5 px-3 text-center">Registrasi</th>
+                        <th className="py-2.5 px-3 text-center">Hadir</th>
+                        <th className="py-2.5 px-3 text-center">Rasio %</th>
+                        <th className="py-2.5 px-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                      {events.map((ev) => {
+                        const eventParticipants = participants.filter(p => p.eventId === ev.id);
+                        const totalReg = eventParticipants.length;
+                        const totalAtt = eventParticipants.filter(p => p.status === 'Attended').length;
+                        const rate = totalReg === 0 ? 0 : Math.round((totalAtt / totalReg) * 100);
+                        
+                        return (
+                          <tr key={ev.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-slate-900 block font-sans">{ev.title}</span>
+                              <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase">{ev.type}</span>
+                            </td>
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              <span>{ev.date}</span>
+                              <span className="text-[10px] text-slate-400 block">{ev.time} WIB &bull; {ev.location}</span>
+                            </td>
+                            <td className="py-3 px-3 text-center font-bold text-slate-800">{totalReg} Orang</td>
+                            <td className="py-3 px-3 text-center font-bold text-emerald-600">{totalAtt} Orang</td>
+                            <td className="py-3 px-3 text-center">
+                              <span className={`inline-block font-mono font-extrabold px-2 py-0.5 rounded text-[10px] ${
+                                rate >= 80 ? 'bg-emerald-100 text-emerald-800' : rate >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                              }`}>
+                                {rate}%
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleExportCSV(ev.id)}
+                                className="px-3 py-1.5 bg-gradient-to-tr from-purple-600 to-pink-500 hover:opacity-95 text-white font-extrabold text-[10px] rounded-lg shadow-sm transition inline-flex items-center space-x-1 cursor-pointer"
+                              >
+                                <Download className="h-3 w-3" />
+                                <span>Laporan (.CSV)</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
 
           </div>
@@ -1823,13 +1936,14 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                         <div className="p-4 bg-slate-50 border-t border-slate-150 flex flex-col items-center space-y-2">
                           
                           <div className="p-2.5 bg-white border border-slate-200 rounded-xl">
-                            {/* Draw beautiful mock barcode QR with canvas CSS styling */}
-                            <div className="grid grid-cols-4 gap-0.5 w-16 h-16 animate-pulse">
-                              <div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-slate-900"></div>
-                              <div className="bg-slate-900"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div>
-                              <div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-slate-900"></div><div className="bg-white"></div>
-                              <div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-slate-900"></div>
-                            </div>
+                            {/* Real scannable QR Code generated via direct API */}
+                            <img
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=0f172a&data=${encodeURIComponent(
+                                viewingTicketParticipant.ticketCode
+                              )}`}
+                              alt={`QR Code ${viewingTicketParticipant.ticketCode}`}
+                              className="w-20 h-20 object-contain selection:bg-transparent"
+                            />
                           </div>
                           
                           <span className="font-mono text-[9px] text-slate-400 font-semibold uppercase">{viewingTicketParticipant.ticketCode}</span>
@@ -2019,6 +2133,11 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
         {/* TAB 6: PLANNER OTOMATIS */}
         {activeTab === 'planner' && (
           <EventPlanner />
+        )}
+
+        {/* TAB 7: DESAIN SERTIFIKAT */}
+        {activeTab === 'sertifikat' && (
+          <CertificateDesigner />
         )}
       </>
     )}
