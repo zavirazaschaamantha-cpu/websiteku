@@ -8,7 +8,7 @@ import {
   BarChart3, CheckCircle, XCircle, Trash2, LogOut, 
   MapPin, Clock, ArrowUpRight, Download, UserCheck, 
   Smile, Layers, Settings, Sparkles, Filter, 
-  UserPlus, CreditCard, Award, HelpCircle, RefreshCw, GraduationCap
+  UserPlus, CreditCard, Award, HelpCircle, RefreshCw, GraduationCap, Upload
 } from 'lucide-react';
 import { Event, Participant, User, SaaSPlan } from '../types';
 import StudentDashboard from './StudentDashboard';
@@ -66,6 +66,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
 
   // Selected participant for ticket rendering
   const [viewingTicketParticipant, setViewingTicketParticipant] = useState<Participant | null>(null);
+  const [attendanceMethod, setAttendanceMethod] = useState<'scan' | 'manual'>('scan');
 
   // Payment Modal States
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -446,6 +447,112 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Import Data from Excel/CSV or JSON file
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (file.name.endsWith('.json')) {
+          const imported = JSON.parse(text);
+          if (Array.isArray(imported)) {
+            const isValid = imported.every(item => item.id && item.name && item.ticketCode);
+            if (!isValid) {
+              alert("Format file JSON tidak standar untuk data peserta.");
+              return;
+            }
+            const merged = [...participants];
+            imported.forEach(imp => {
+              const idx = merged.findIndex(p => p.ticketCode.toUpperCase() === imp.ticketCode.toUpperCase() || p.id === imp.id);
+              if (idx !== -1) {
+                merged[idx] = { ...merged[idx], ...imp };
+              } else {
+                merged.push({
+                  id: imp.id || `part_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                  eventId: imp.eventId || (events[0]?.id || 'event_1'),
+                  name: imp.name,
+                  email: imp.email || 'imported@event.com',
+                  phone: imp.phone || '-',
+                  ticketCode: imp.ticketCode,
+                  status: (imp.status === 'Attended' || imp.status === 'Hadir') ? 'Attended' : 'Registered',
+                  registeredAt: imp.registeredAt || new Date().toISOString(),
+                  attendedAt: imp.attendedAt || undefined
+                });
+              }
+            });
+            saveParticipantsToStorage(merged);
+            alert(`Berhasil mengimpor & mensinkronisasikan ${imported.length} data absensi dari file JSON!`);
+          } else {
+            alert("File JSON harus berupa array berisi data peserta.");
+          }
+        } else if (file.name.endsWith('.csv')) {
+          const lines = text.split('\n');
+          if (lines.length <= 1) {
+            alert("File CSV kosong atau tidak memiliki baris data.");
+            return;
+          }
+          const merged = [...participants];
+          let importCount = 0;
+          
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            const matches = line.split(',');
+            if (matches.length < 5) continue;
+            
+            const idDoc = matches[0]?.replace(/"/g, '') || '';
+            const nameDoc = matches[1]?.replace(/"/g, '') || '';
+            const emailDoc = matches[2]?.replace(/"/g, '') || '';
+            const phoneDoc = matches[3]?.replace(/"/g, '') || '';
+            const ticketCodeDoc = matches[4]?.replace(/"/g, '') || '';
+            const statusDoc = matches[5]?.replace(/"/g, '') || '';
+            const registeredAtDoc = matches[6]?.replace(/"/g, '') || '';
+            const attendedAtDoc = matches[7]?.replace(/"/g, '') || '';
+            
+            if (nameDoc && ticketCodeDoc) {
+              const isAttended = statusDoc === 'Hadir' || statusDoc === 'Attended';
+              const idx = merged.findIndex(p => p.ticketCode.toUpperCase() === ticketCodeDoc.toUpperCase() || p.id === idDoc);
+              
+              if (idx !== -1) {
+                merged[idx] = {
+                  ...merged[idx],
+                  status: isAttended ? 'Attended' : 'Registered',
+                  attendedAt: isAttended ? (attendedAtDoc && attendedAtDoc !== '-' ? attendedAtDoc : new Date().toISOString()) : undefined
+                };
+              } else {
+                merged.push({
+                  id: idDoc || `part_${Date.now()}_${i}`,
+                  eventId: events[0]?.id || 'event_1',
+                  name: nameDoc,
+                  email: emailDoc,
+                  phone: phoneDoc,
+                  ticketCode: ticketCodeDoc,
+                  status: isAttended ? 'Attended' : 'Registered',
+                  registeredAt: registeredAtDoc || new Date().toISOString(),
+                  attendedAt: isAttended ? (attendedAtDoc && attendedAtDoc !== '-' ? attendedAtDoc : new Date().toISOString()) : undefined
+                });
+              }
+              importCount++;
+            }
+          }
+          saveParticipantsToStorage(merged);
+          alert(`Berhasil mengimpor & mensinkronisasikan ${importCount} data absensi dari file CSV!`);
+        } else {
+          alert("Silakan unggah file dengan format .csv atau .json");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Gagal mengurai file. Pastikan format file sesuai.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // Mock charts source preparation
@@ -1249,128 +1356,266 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
             <div className="lg:col-span-7 bg-white border border-slate-100 p-6 rounded-3xl shadow-sm space-y-6">
               
               <div className="space-y-2">
-                <span className="text-purple-600 text-xs font-bold uppercase tracking-wider block">Real-Time Verification</span>
-                <h3 className="font-sans font-extrabold text-lg text-slate-950">Scanner Kehadiran / Absensi QR</h3>
+                <span className="text-purple-600 text-xs font-bold uppercase tracking-wider block font-mono">DASHBOARD PRESENSI PINDAI</span>
+                <h3 className="font-sans font-extrabold text-lg text-slate-950">Metode Validasi Kehadiran Peserta</h3>
                 <p className="text-xs text-slate-500">
-                  Simulasikan proses pemindaian tiket pendaftaran di pintu masuk seminar. Sistem akan memvalidasi id, menandai kehadiran peserta, dan memperbarui grafik dashboard secara instan.
+                  Pilih opsi di bawah untuk mencatatkan absensi. Data secara otomatis terhubung secara real-time ke database penyimpanan file lokal (<span className="font-mono text-purple-600 font-bold">LocalStorage ep_participants</span>).
                 </p>
               </div>
 
-              {/* MOCK SCANNER VIEWPORT */}
-              <div className="border-4 border-slate-200 rounded-3xl overflow-hidden bg-slate-950 relative aspect-[1.3] shadow-inner flex flex-col items-center justify-between p-6">
+              {/* TABS SELECTOR FOR ATTENDANCE METHOD */}
+              <div className="bg-slate-100 p-1 rounded-2xl border border-slate-200/60 flex max-w-sm" id="method-tab-container">
+                <button
+                  id="tab-method-scan"
+                  type="button"
+                  onClick={() => {
+                    setAttendanceMethod('scan');
+                    setScanResult(null);
+                  }}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                    attendanceMethod === 'scan'
+                      ? 'bg-gradient-to-tr from-purple-600 to-pink-500 text-white shadow font-black'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <QrCode className="h-3.5 w-3.5" />
+                  <span>Scan QR Code</span>
+                </button>
                 
-                {/* Simulated Laser scan beam line */}
-                <div className="absolute top-1/4 left-10 right-10 h-0.5 bg-pink-500 shadow-md shadow-pink-500 animate-pulse -translate-y-1/2"></div>
-                
-                {/* Hologram decoration dots grid */}
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-500/5 to-transparent flex items-center justify-center opacity-85">
-                  <div className="w-52 h-52 border border-purple-500/40 border-dashed rounded-2xl flex items-center justify-center">
-                    <QrCode className="h-24 w-24 text-purple-400/30 animate-pulse" />
-                  </div>
-                </div>
-
-                {/* Simulated scan green popup state */}
-                {scanResult && (
-                  <div className={`absolute inset-0 flex items-center justify-center p-6 bg-slate-950/90 text-center ${scanResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    <div className="space-y-4 max-w-sm">
-                      <div className="mx-auto w-12 h-12 rounded-full border border-current flex items-center justify-center mb-1">
-                        {scanResult.success ? <CheckCircle className="h-6 w-6 stroke-[3]" /> : <XCircle className="h-6 w-6 stroke-[3]" />}
-                      </div>
-                      <h4 className="font-sans font-bold text-base uppercase tracking-wider">{scanResult.success ? 'SCAN SUKSES' : 'SCAN GAGAL'}</h4>
-                      <p className="text-xs text-slate-300 leading-relaxed font-semibold">{scanResult.message}</p>
-                      
-                      {scanResult.participant && (
-                        <div className="bg-slate-900 border border-slate-800 p-3 rounded-2xl flex items-center space-x-3 text-left">
-                          <div className="p-2 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-xl text-white font-sans text-xs font-black">
-                            {scanResult.participant.name.substring(0,2)}
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-white">{scanResult.participant.name}</p>
-                            <p className="text-[9px] text-slate-400 font-mono">{scanResult.participant.ticketCode} &bull; {scanResult.participant.email}</p>
-                            {scanResult.event && (
-                              <p className="text-[9px] text-purple-300 truncate font-semibold mt-0.5">{scanResult.event.title}</p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      <button
-                        onClick={() => setScanResult(null)}
-                        className="p-1 px-4 text-xs font-bold text-slate-300 hover:text-white border border-slate-700 bg-slate-900 hover:bg-slate-800 rounded-xl transition"
-                      >
-                        Scan Berikutnya
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Mock Camera details header */}
-                <div className="w-full relative flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1 rounded-full text-[9px] text-slate-400 font-bold border border-slate-800">
-                    <span className="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
-                    <span>LIVE HD SCANNER FEED</span>
-                  </div>
-                  <span className="text-[9px] font-mono text-slate-500">CO-WEB CAM REQ 1</span>
-                </div>
-
-                <div className="relative text-center max-w-xs space-y-1">
-                  <span className="text-[10px] text-slate-400 block tracking-wider uppercase font-extrabold text-center mx-auto">Target Pembaca Tiket QR</span>
-                  <p className="text-[9px] text-slate-500">Posisikan kode batang di dalam kotak penembak garis laser.</p>
-                </div>
-
+                <button
+                  id="tab-method-manual"
+                  type="button"
+                  onClick={() => {
+                    setAttendanceMethod('manual');
+                    setScanResult(null);
+                  }}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer ${
+                    attendanceMethod === 'manual'
+                      ? 'bg-gradient-to-tr from-purple-600 to-pink-500 text-white shadow font-black'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Ticket className="h-3.5 w-3.5" />
+                  <span>Ketik Boarding Pass</span>
+                </button>
               </div>
 
-              {/* MANUAL SIMULATION ACTION BAR */}
-              <div className="space-y-3.5 pt-2">
-                <label htmlFor="manual-ticket-id" className="block text-xs font-bold text-slate-700 uppercase tracking-widest">
-                  Input / Pilih Simulator Tiket Terdaftar
-                </label>
-                
-                <div className="flex gap-2">
-                  <input
-                    id="manual-ticket-id"
-                    type="text"
-                    value={manualTicketInput}
-                    onChange={(e) => setManualTicketInput(e.target.value)}
-                    placeholder="Masukkan Kode Tiket (Contoh: EV1-AND89)"
-                    className="flex-1 px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 uppercase"
-                  />
-                  <button
-                    id="btn-scan-submit"
-                    onClick={() => handlePerformScan()}
-                    className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs font-bold rounded-xl transition shadow-md shadow-purple-100 flex items-center space-x-1"
-                  >
-                    <QrCode className="h-4 w-4 shrink-0" />
-                    <span>Konfirmasi Scan</span>
-                  </button>
-                </div>
+              {attendanceMethod === 'scan' ? (
+                <div className="space-y-4 animate-fade-in" id="attendance-section-scan">
+                  {/* MOCK SCANNER VIEWPORT */}
+                  <div className="border-4 border-slate-200 rounded-3xl overflow-hidden bg-slate-950 relative aspect-[1.3] shadow-inner flex flex-col items-center justify-between p-6">
+                    
+                    {/* Simulated Laser scan beam line */}
+                    <div className="absolute top-1/2 left-10 right-10 h-0.5 bg-pink-500 shadow-md shadow-pink-500 animate-pulse -translate-y-1/2 z-10"></div>
+                    
+                    {/* Hologram decoration dots grid */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-500/5 to-transparent flex items-center justify-center opacity-85">
+                      <div className="w-52 h-52 border border-purple-500/40 border-dashed rounded-2xl flex items-center justify-center">
+                        <QrCode className="h-24 w-24 text-purple-400/30 animate-pulse" />
+                      </div>
+                    </div>
 
-                {/* Quick picker items of registered users that are not yet checked, for extreme simulation usability */}
-                <div className="space-y-2 bg-slate-50 p-4 border border-slate-100 rounded-2xl">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Simulator Klik Cepat Tiket Peserta:</span>
-                  <div className="flex flex-wrap gap-2">
-                    {participants.filter(p => p.status === 'Registered').map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          setManualTicketInput(p.ticketCode);
-                          setViewingTicketParticipant(p);
-                        }}
-                        className={`p-1.5 px-3 bg-white text-slate-700 border border-slate-200 hover:border-purple-300 rounded-xl text-[10px] font-semibold flex items-center space-x-1.5 text-left transition ${manualTicketInput === p.ticketCode ? 'ring-2 ring-purple-600 text-purple-700 bg-purple-50/20' : ''}`}
-                      >
-                        <Ticket className="h-3 w-3 text-pink-500" />
-                        <div>
-                          <strong>{p.name}</strong> &bull; <span className="font-mono text-slate-400">{p.ticketCode}</span>
+                    {/* Simulated scan green popup state */}
+                    {scanResult && (
+                      <div className={`absolute inset-0 flex items-center justify-center p-6 bg-slate-950/90 text-center z-20 ${scanResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <div className="space-y-4 max-w-sm">
+                          <div className="mx-auto w-12 h-12 rounded-full border border-current flex items-center justify-center mb-1">
+                            {scanResult.success ? <CheckCircle className="h-6 w-6 stroke-[3]" /> : <XCircle className="h-6 w-6 stroke-[3]" />}
+                          </div>
+                          <h4 className="font-sans font-bold text-base uppercase tracking-wider">{scanResult.success ? 'SCAN SUKSES' : 'SCAN GAGAL'}</h4>
+                          <p className="text-xs text-slate-300 leading-relaxed font-semibold">{scanResult.message}</p>
+                          
+                          {scanResult.participant && (
+                            <div className="bg-slate-900 border border-slate-800 p-3 rounded-2xl flex items-center space-x-3 text-left">
+                              <div className="p-2 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-xl text-white font-sans text-xs font-black">
+                                {scanResult.participant.name.substring(0,2)}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-white">{scanResult.participant.name}</p>
+                                <p className="text-[9px] text-slate-400 font-mono">{scanResult.participant.ticketCode} &bull; {scanResult.participant.email}</p>
+                                {scanResult.event && (
+                                  <p className="text-[9px] text-purple-300 truncate font-semibold mt-0.5">{scanResult.event.title}</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          <button
+                            id="btn-scan-again-camera"
+                            onClick={() => setScanResult(null)}
+                            className="p-1 px-4 text-xs font-bold text-slate-300 hover:text-white border border-slate-700 bg-slate-900 hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                          >
+                            Pindai Berikutnya
+                          </button>
                         </div>
-                      </button>
-                    ))}
-
-                    {participants.filter(p => p.status === 'Registered').length === 0 && (
-                      <span className="text-[10px] text-slate-400 italic">Seluruh peserta terdaftar telah melakukan check-in / absensi!</span>
+                      </div>
                     )}
+
+                    {/* Mock Camera details header */}
+                    <div className="w-full relative flex items-center justify-between z-10">
+                      <div className="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1 rounded-full text-[9px] text-slate-400 font-bold border border-slate-800">
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+                        <span>LIVE CAMERA EMULATOR</span>
+                      </div>
+                      <span className="text-[9px] font-mono text-slate-500">READY</span>
+                    </div>
+
+                    <div className="relative text-center max-w-xs space-y-1 z-10">
+                      <span className="text-[10px] text-slate-300 block tracking-wider uppercase font-extrabold text-center mx-auto">Kamera Bidikan Aktif</span>
+                      <p className="text-[9px] text-slate-400">Gunakan simulator klik cepat peserta di bawah untuk memicu pemindaian QR code.</p>
+                    </div>
+
+                  </div>
+
+                  {/* Quick picker items of registered users that are not yet checked, for extreme simulation usability */}
+                  <div className="space-y-2 bg-slate-50 p-4 border border-slate-100 rounded-2xl">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Simulator Klik untuk Pindai QR Tiket:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {participants.filter(p => p.status === 'Registered').map(p => (
+                        <button
+                          key={p.id}
+                          id={`simulate-scan-${p.id}`}
+                          onClick={() => {
+                            setViewingTicketParticipant(p);
+                            handlePerformScan(p.ticketCode);
+                          }}
+                          className="p-1.5 px-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-purple-300 rounded-xl text-[10px] font-semibold flex items-center space-x-1.5 text-left transition cursor-pointer"
+                        >
+                          <QrCode className="h-3.5 w-3.5 text-purple-600" />
+                          <div>
+                            <strong>{p.name}</strong> &bull; <span className="font-mono text-slate-400">{p.ticketCode}</span>
+                          </div>
+                        </button>
+                      ))}
+
+                      {participants.filter(p => p.status === 'Registered').length === 0 && (
+                        <span className="text-[10px] text-slate-400 italic">Seluruh peserta terdaftar telah melakukan check-in / absensi!</span>
+                      )}
+                    </div>
                   </div>
                 </div>
+              ) : (
+                <div className="space-y-4 animate-fade-in" id="attendance-section-manual">
+                  {/* MANUAL INPUT FORM */}
+                  <div className="bg-slate-50 p-6 border border-slate-100 rounded-2xl space-y-4">
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Verifikasi Manual Boarding Pass</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Masukkan kode boarding pass peserta (contoh: <span className="font-mono font-bold bg-slate-200 text-slate-700 px-1 rounded">EV1-AND89</span>) yang tertera di kartu tiket mahasiswa untuk absensi langsung gratis.
+                    </p>
 
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        id="manual-ticket-id"
+                        type="text"
+                        value={manualTicketInput}
+                        onChange={(e) => setManualTicketInput(e.target.value)}
+                        placeholder="Masukkan Kode Tiket (Contoh: EV1-AND89)"
+                        className="flex-1 px-3 py-2 border border-slate-200 bg-white rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 uppercase font-mono"
+                      />
+                      <button
+                        id="btn-scan-submit"
+                        onClick={() => handlePerformScan()}
+                        className="px-5 py-2.5 bg-gradient-to-tr from-purple-600 to-pink-500 text-white text-xs font-bold rounded-xl transition shadow-md hover:opacity-95 flex items-center justify-center space-x-1 cursor-pointer"
+                      >
+                        <UserCheck className="h-4 w-4 shrink-0" />
+                        <span>Verifikasi & Hadirkan</span>
+                      </button>
+                    </div>
+
+                    {scanResult && (
+                      <div className={`p-4 rounded-xl border ${scanResult.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'} text-xs font-medium`}>
+                        <div className="flex items-start gap-2">
+                          <div className="mt-0.5 shrink-0">
+                            {scanResult.success ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                          </div>
+                          <div>
+                            <span className="font-bold block uppercase tracking-wider mb-1">
+                              {scanResult.success ? 'ABSENSI BERHASIL' : 'DITOLAK / DUPLIKAT'}
+                            </span>
+                            <p className="leading-relaxed">{scanResult.message}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Click board for ease of manual verification */}
+                  <div className="space-y-2 bg-slate-50 p-4 border border-slate-100 rounded-2xl">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Daftar Pintas Salin Kode Boarding Pass:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {participants.filter(p => p.status === 'Registered').map(p => (
+                        <button
+                          key={p.id}
+                          id={`quick-add-${p.id}`}
+                          onClick={() => {
+                            setManualTicketInput(p.ticketCode);
+                            setViewingTicketParticipant(p);
+                          }}
+                          className={`p-1.5 px-3 bg-white text-slate-700 border border-slate-200 hover:border-purple-300 rounded-xl text-[10px] font-semibold flex items-center space-x-1.5 text-left transition cursor-pointer ${manualTicketInput === p.ticketCode ? 'ring-2 ring-purple-600 text-purple-700 bg-purple-50/20' : ''}`}
+                        >
+                          <Ticket className="h-3 w-3 text-pink-500" />
+                          <div>
+                            <strong>{p.name}</strong> &bull; <span className="font-mono text-slate-400">{p.ticketCode}</span>
+                          </div>
+                        </button>
+                      ))}
+
+                      {participants.filter(p => p.status === 'Registered').length === 0 && (
+                        <span className="text-[10px] text-slate-400 italic">Seluruh peserta terdaftar telah melakukan check-in / absensi!</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* CONNECT FILE DATABASE INTEGRATION PANEL */}
+              <div className="border-t border-slate-150 pt-5 space-y-3.5" id="file-sync-integration-panel">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse inline-block"></span>
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest font-mono">
+                      File Database Hubungan & Sinkronisasi
+                    </h4>
+                  </div>
+                  <span className="text-[9px] text-slate-400 font-mono">FILE PERSISTENT (AUTOMATIC)</span>
+                </div>
+
+                <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-900 leading-snug">Metode Ekspor / Impor Backup File Absensi</p>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Setiap absensi (scan / boarding pass) disimpan permanen pada sistem. Anda dapat mengekspor data ini ke excel .CSV, atau mengimpor file backup absensi eksternal.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    <button
+                      id="btn-export-attendance-csv"
+                      type="button"
+                      onClick={() => handleExportCSV('all')}
+                      className="py-1.5 px-2.5 bg-slate-950 text-white font-sans text-[10px] font-bold rounded-xl transition flex items-center space-x-1 hover:bg-slate-850 shrink-0 cursor-pointer shadow"
+                    >
+                      <Download className="h-3 w-3" />
+                      <span>Ekspor CSV</span>
+                    </button>
+
+                    <label
+                      id="label-import-attendance-file"
+                      htmlFor="input-import-attendance"
+                      className="py-1.5 px-2.5 bg-pink-100 hover:bg-pink-150 border border-pink-200 text-pink-700 font-sans text-[10px] font-bold rounded-xl transition flex items-center space-x-1 shrink-0 cursor-pointer shadow"
+                    >
+                      <Upload className="h-3 w-3" />
+                      <span>Impor File</span>
+                    </label>
+                    <input
+                      id="input-import-attendance"
+                      type="file"
+                      accept=".csv,.json"
+                      onChange={handleImportFile}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
               </div>
 
             </div>
@@ -1379,7 +1624,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
             <div className="lg:col-span-5 bg-white border border-slate-100 p-6 rounded-3xl shadow-sm space-y-4">
               
               <div className="space-y-1">
-                <span className="text-pink-500 text-xs font-bold uppercase tracking-wider block">E-Ticket Previewer</span>
+                <span className="text-pink-500 text-xs font-bold uppercase tracking-wider block font-mono">E-Ticket Previewer</span>
                 <h3 className="font-sans font-bold text-sm text-slate-900">Kartu Penerimaan Tiket Digital</h3>
               </div>
 
