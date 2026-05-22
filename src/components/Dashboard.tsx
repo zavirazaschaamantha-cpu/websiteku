@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Event, Participant, User, SaaSPlan } from '../types';
 import StudentDashboard from './StudentDashboard';
+import EventPlanner from './EventPlanner';
 
 interface DashboardProps {
   user: User;
@@ -28,7 +29,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
   
   // Navigation
   const [roleMode, setRoleMode] = useState<'panitia' | 'peserta'>(user.role === 'mahasiswa' ? 'peserta' : 'panitia');
-  const [activeTab, setActiveTab] = useState<'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas'>('ringkasan');
+  const [activeTab, setActiveTab] = useState<'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas' | 'planner'>('ringkasan');
   
   // Event filtration
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
@@ -825,6 +826,15 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                 </button>
 
                 <button
+                  id="menu-tab-planner"
+                  onClick={() => setActiveTab('planner')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'planner' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Planner Otomatis</span>
+                </button>
+
+                <button
                   id="menu-tab-saas"
                   onClick={() => setActiveTab('saas')}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'saas' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
@@ -891,6 +901,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                   {activeTab === 'events' && 'Kelola Pendaftaran Event'}
                   {activeTab === 'peserta' && 'Manajemen Database Peserta'}
                   {activeTab === 'scanner' && 'E-Tiket & Scanner Absensi'}
+                  {activeTab === 'planner' && 'Perumusan Struktur & Rangkaian Acara (Planner)'}
                   {activeTab === 'saas' && 'Status Bisnis & Informasi SWOT'}
                 </>
               )}
@@ -2003,6 +2014,11 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
             </section>
 
           </div>
+        )}
+
+        {/* TAB 6: PLANNER OTOMATIS */}
+        {activeTab === 'planner' && (
+          <EventPlanner />
         )}
       </>
     )}
