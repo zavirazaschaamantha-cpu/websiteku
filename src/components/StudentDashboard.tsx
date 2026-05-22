@@ -4,7 +4,7 @@ import {
   Ticket, QrCode, Award, BarChart2, Star, CheckCircle, 
   MapPin, Calendar as CalendarIcon, Search, SearchCode, Clock, 
   Download, Printer, Info, Compass, HelpCircle, GraduationCap,
-  Sparkles, CheckCircle2, ChevronRight, RefreshCw, AlertTriangle, MessageSquare
+  Sparkles, CheckCircle2, ChevronRight, RefreshCw, AlertTriangle, MessageSquare, Phone
 } from 'lucide-react';
 import { Event, Participant, User } from '../types';
 import ChatRoom from './ChatRoom';
@@ -204,6 +204,44 @@ export default function StudentDashboard({
             <span>{showFeedbackMessage}</span>
           </div>
         )}
+
+        {/* LAYANAN CHAT & WHATSAPP SUPPORT BANNER */}
+        <div id="student-support-chat-banner" className="bg-gradient-to-r from-purple-50 to-pink-50 border border-pink-100 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm">
+          <div className="flex items-start gap-3 text-left">
+            <div className="p-2.5 bg-pink-500 text-white rounded-2xl shadow shadow-pink-500/10 shrink-0">
+              <MessageSquare className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-xs font-black text-slate-900 font-sans tracking-tight">Kanal Layanan Koordinasi & WhatsApp BEM</h4>
+              <p className="text-[10px] text-slate-500 font-sans leading-relaxed">
+                Ada kendala pendaftaran, jadwal, absen QR, atau download sertifikat? Hubungi panitia via <strong>Chat Live</strong> atau telpon darurat via <strong>WhatsApp BEM</strong>.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto shrink-0 font-sans">
+            <button
+              id="student-support-btn-livechat"
+              onClick={() => {
+                setActiveTab('chat');
+                setSelectedTicket(null);
+              }}
+              className="flex-1 sm:flex-initial px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-extrabold rounded-xl transition shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <MessageSquare className="h-3.5 w-3.5 text-pink-300" />
+              <span>Buka Chat Live</span>
+            </button>
+            <a
+              id="student-support-btn-whatsapp"
+              href="https://wa.me/6281273849902"
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 sm:flex-initial px-3.5 py-2 bg-green-500 hover:bg-green-600 text-white text-[10px] font-extrabold rounded-xl transition shadow-xs flex items-center justify-center gap-1.5"
+            >
+              <Phone className="h-3.5 w-3.5" />
+              <span>WhatsApp BEM</span>
+            </a>
+          </div>
+        </div>
 
         {/* TAB HEADER TABS */}
         <div className="flex border-b border-slate-100 pb-1 gap-2">
