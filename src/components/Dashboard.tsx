@@ -64,6 +64,113 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
   // Selected participant for ticket rendering
   const [viewingTicketParticipant, setViewingTicketParticipant] = useState<Participant | null>(null);
 
+  // Payment Modal States
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentTargetPlan, setPaymentTargetPlan] = useState<SaaSPlan | null>(null);
+  const [paymentPrice, setPaymentPrice] = useState<number>(0);
+  const [paymentSelectedMethod, setPaymentSelectedMethod] = useState<string | null>(null);
+  const [paymentStep, setPaymentStep] = useState<'select' | 'processing' | 'instruction' | 'success'>('select');
+  const [paymentEWalletPhone, setPaymentEWalletPhone] = useState<string>('');
+  const [paymentVaNumber, setPaymentVaNumber] = useState<string>('');
+  const [paymentError, setPaymentError] = useState<string>('');
+  const [paymentPromoCode, setPaymentPromoCode] = useState<string>('');
+  const [paymentDiscount, setPaymentDiscount] = useState<number>(0);
+  const [paymentInvoiceId, setPaymentInvoiceId] = useState<string>('');
+
+  const getVaPrefix = (method: string) => {
+    switch (method) {
+      case 'bank_bca': return '88301';
+      case 'bank_mandiri': return '89407';
+      case 'bank_bni': return '82770';
+      case 'bank_bri': return '80777';
+      case 'bank_permata': return '84440';
+      default: return '88000';
+    }
+  };
+
+  const handleSelectPaymentMethod = (method: string) => {
+    setPaymentSelectedMethod(method);
+    setPaymentError('');
+    if (method.startsWith('bank_')) {
+      const prefix = getVaPrefix(method);
+      const randomVa = prefix + Math.floor(10000000 + Math.random() * 90000000).toString();
+      setPaymentVaNumber(randomVa);
+    }
+  };
+
+  const handleApplyPromoCode = () => {
+    setPaymentError('');
+    const code = paymentPromoCode.trim().toUpperCase();
+    if (!code) {
+      setPaymentDiscount(0);
+      return;
+    }
+    
+    if (code === 'DISKON20') {
+      const discVal = Math.round(paymentPrice * 0.2);
+      setPaymentDiscount(discVal);
+    } else if (code === 'EVENTKUHEBAT') {
+      const discVal = Math.round(paymentPrice * 0.5);
+      setPaymentDiscount(discVal);
+    } else if (code === 'PROMOAKHIRTAHUN') {
+      const discVal = Math.round(paymentPrice * 0.3);
+      setPaymentDiscount(discVal);
+    } else {
+      setPaymentError('Kode voucher tidak valid atau sudah kedaluwarsa.');
+      setPaymentDiscount(0);
+    }
+  };
+
+  const handleTriggerUpgrade = (plan: SaaSPlan) => {
+    setPaymentTargetPlan(plan);
+    const basePrice = plan === 'basic' ? 49000 : plan === 'pro' ? 99000 : 0;
+    setPaymentPrice(basePrice);
+    setPaymentPromoCode('');
+    setPaymentDiscount(0);
+    setPaymentSelectedMethod(null);
+    setPaymentStep('select');
+    setPaymentEWalletPhone('');
+    setPaymentError('');
+    
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    setPaymentInvoiceId(`INV-20260522-${rand}`);
+    
+    setShowPaymentModal(true);
+  };
+
+  const handleProcessPayment = () => {
+    if (!paymentSelectedMethod) {
+      setPaymentError('Harap pilih salah satu metode pembayaran yang Anda inginkan.');
+      return;
+    }
+
+    if (paymentSelectedMethod.startsWith('wallet_')) {
+      if (!paymentEWalletPhone) {
+        setPaymentError('Harap masukkan nomor HP terdaftar e-wallet Anda.');
+        return;
+      }
+      if (paymentEWalletPhone.length < 10) {
+        setPaymentError('Nomor handphone tidak valid (minimal 10 digit).');
+        return;
+      }
+    }
+
+    setPaymentError('');
+    setPaymentStep('processing');
+    
+    // Simulate API connecting delay to mimic real high-end payment gateway setup (like Midtrans, Xendit, etc.)
+    setTimeout(() => {
+      setPaymentStep('instruction');
+    }, 1500);
+  };
+
+  const handleSimulatePaymentSuccess = () => {
+    setPaymentStep('success');
+    if (paymentTargetPlan) {
+      onUpdateUserPlan(paymentTargetPlan);
+    }
+  };
+
   // Load database from localStorage
   const loadDatabase = () => {
     try {
@@ -364,8 +471,8 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
           </p>
           <button 
             id="analytics-upgrade-now"
-            onClick={() => setActiveTab('saas')}
-            className="px-5 py-2.5 bg-purple-600 text-white text-xs font-bold rounded-xl hover:bg-purple-700 transition"
+            onClick={() => { setActiveTab('saas'); handleTriggerUpgrade('pro'); }}
+            className="px-5 py-2.5 bg-purple-600 text-white text-xs font-bold rounded-xl hover:bg-purple-700 transition cursor-pointer"
           >
             Upgrade Layanan Sekarang
           </button>
@@ -678,8 +785,8 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
                 </div>
                 
                 <button
-                  onClick={() => setActiveTab('saas')}
-                  className="w-full mt-4 py-2.5 bg-white text-purple-950 font-sans text-xs font-bold rounded-xl hover:bg-purple-100 transition flex items-center justify-center space-x-2"
+                  onClick={() => { setActiveTab('saas'); handleTriggerUpgrade('pro'); }}
+                  className="w-full mt-4 py-2.5 bg-white text-purple-950 font-sans text-xs font-bold rounded-xl hover:bg-purple-100 transition flex items-center justify-center space-x-2 cursor-pointer"
                 >
                   <CreditCard className="h-3.5 w-3.5" />
                   <span>Update Paket Langganan</span>
@@ -721,8 +828,16 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
             </div>
 
             {eventFormError && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-xl">
-                {eventFormError}
+              <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <span>{eventFormError}</span>
+                {isEventLimitReached && (
+                  <button
+                    onClick={() => { handleTriggerUpgrade('basic'); }}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition text-[10px] w-full sm:w-auto shrink-0 uppercase tracking-wider cursor-pointer font-sans"
+                  >
+                    Upgrade Sekarang
+                  </button>
+                )}
               </div>
             )}
 
@@ -1353,8 +1468,8 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
                   <p className="text-[10px] text-slate-500 leading-relaxed mb-4">Akses pendaftaran e-tiket QR tak terbatas, tanpa analitik.</p>
                   <button
                     disabled={user.plan === 'basic'}
-                    onClick={() => onUpdateUserPlan('basic')}
-                    className={`w-full py-1.5 text-xs font-bold rounded-xl transition ${user.plan === 'basic' ? 'bg-purple-200 text-purple-700 cursor-not-allowed' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}
+                    onClick={() => handleTriggerUpgrade('basic')}
+                    className={`w-full py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${user.plan === 'basic' ? 'bg-purple-200 text-purple-700 cursor-not-allowed' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}
                   >
                     Upgrade Paket Basic
                   </button>
@@ -1370,8 +1485,8 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
                   <p className="text-[10px] text-slate-500 leading-relaxed mb-4">Buka visualisasi analitik penuh dan layanan prioritas.</p>
                   <button
                     disabled={user.plan === 'pro'}
-                    onClick={() => onUpdateUserPlan('pro')}
-                    className={`w-full py-1.5 text-xs font-bold rounded-xl transition ${user.plan === 'pro' ? 'bg-purple-200 text-purple-700 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white font-sans text-xs font-bold'}`}
+                    onClick={() => handleTriggerUpgrade('pro')}
+                    className={`w-full py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${user.plan === 'pro' ? 'bg-purple-200 text-purple-700 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white font-sans text-xs font-bold'}`}
                   >
                     Upgrade Paket Pro
                   </button>
@@ -1680,6 +1795,580 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
               </div>
 
             </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* INDONESIAN PAYMENT GATEWAY SUBSCRIPTION CHECKOUT MODAL */}
+      {showPaymentModal && paymentTargetPlan && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white border border-slate-100 rounded-3xl max-w-2xl w-full p-6 md:p-8 shadow-2xl relative space-y-6 max-h-[92vh] overflow-y-auto font-sans text-slate-800">
+            
+            {/* Close Button */}
+            {paymentStep !== 'processing' && paymentStep !== 'success' && (
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="absolute top-5 right-5 text-slate-400 hover:text-slate-650 transition p-1 hover:bg-slate-100 rounded-lg cursor-pointer"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
+            )}
+
+            {/* Modal Header */}
+            <header className="border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-2.5 text-pink-500">
+                <CreditCard className="h-5 w-5" />
+                <span className="text-xs font-bold uppercase tracking-widest font-mono">Simulasi Midtrans Payment Gateway</span>
+              </div>
+              <h3 className="font-sans font-black text-xl text-slate-900 mt-1">Pembayaran Langganan Paket SaaS</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Pilih salah satu metode pembayaran Indonesia yang sah di bawah untuk mengaktifkan keanggotaan premium Anda.
+              </p>
+            </header>
+
+            {/* STEP 1: METODE SELECTION */}
+            {paymentStep === 'select' && (
+              <div className="space-y-6 text-sm">
+                
+                {/* Billing Summary Board */}
+                <div className="bg-slate-50 border border-slate-150 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">Paket Terpilih</span>
+                    <h4 className="font-sans font-extrabold text-base text-purple-955">
+                      {paymentTargetPlan === 'basic' ? 'Basic Plan (Standard)' : 'Pro Plan (Korporat)'}
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Berlaku selama 30 hari &bull; Diperbarui secara otomatis.
+                    </p>
+                  </div>
+                  <div className="bg-white border border-slate-150 rounded-xl p-3 flex flex-col justify-between text-xs font-sans">
+                    <div className="flex justify-between items-center text-slate-500 mb-1">
+                      <span>Harga Paket:</span>
+                      <span className="font-semibold text-slate-800">Rp{paymentPrice.toLocaleString('id-ID')}</span>
+                    </div>
+                    {paymentDiscount > 0 && (
+                      <div className="flex justify-between items-center text-emerald-600 mb-1">
+                        <span>Potongan Kode Promo:</span>
+                        <span className="font-bold">- Rp{paymentDiscount.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-slate-500 mb-1">
+                      <span>Biaya Administrasi:</span>
+                      <span className="font-semibold text-slate-800">Rp2.500</span>
+                    </div>
+                    <div className="border-t border-dashed border-slate-100 mt-1.5 pt-1.5 flex justify-between items-center font-bold text-slate-950">
+                      <span className="text-purple-900">Total Tagihan:</span>
+                      <span className="text-pink-600 text-sm">Rp{(paymentPrice - paymentDiscount + 2500).toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Voucher Promotions code input */}
+                <div className="space-y-1.5 bg-gradient-to-r from-pink-50 to-purple-50 border border-purple-100 p-3.5 rounded-2xl">
+                  <span className="text-[10px] uppercase font-bold text-pink-700 tracking-wider block">Gunakan Kode Voucher / Promo diskon</span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={paymentPromoCode}
+                      onChange={(e) => setPaymentPromoCode(e.target.value)}
+                      placeholder="Contoh: EVENTKUHEBAT , DISKON20 , PROMOAKHIRTAHUN"
+                      className="flex-1 bg-white border border-slate-200 p-2 rounded-xl text-xs font-semibold placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pink-500 focus:bg-white uppercase tracking-wider"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyPromoCode}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+                    >
+                      Klaim
+                    </button>
+                  </div>
+                  <p className="text-[9px] text-purple-600 leading-snug font-sans">
+                    *Gunakan <strong className="font-black text-pink-600">EVENTKUHEBAT</strong> (Potongan 50%) &bull; <strong className="font-black text-pink-600">DISKON20</strong> (Potongan 20%) &bull; <strong className="font-black text-pink-600">PROMOAKHIRTAHUN</strong> (Potongan 30%)
+                  </p>
+                </div>
+
+                {/* List Payment Channels Category wise */}
+                <div className="space-y-4">
+                  <span className="text-xs font-bold text-slate-900 uppercase block tracking-wider font-sans">Metode Pembayaran Tersedia</span>
+                  
+                  {/* Category A: Bank Virtual Account */}
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider font-sans">Kategori 1: Transfer Virtual Account Bank</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('bank_bca')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'bank_bca' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-650'}`}
+                      >
+                        <span className="text-[12px] font-black text-blue-800 tracking-wide block uppercase font-mono mt-1">BCA</span>
+                        <span className="text-[9px] font-bold block">BCA VA</span>
+                        {paymentSelectedMethod === 'bank_bca' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('bank_mandiri')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'bank_mandiri' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-650'}`}
+                      >
+                        <span className="text-[11px] font-black text-amber-500 tracking-wide block uppercase italic font-sans mt-1">mandiri</span>
+                        <span className="text-[9px] font-bold block font-sans">Mandiri VA</span>
+                        {paymentSelectedMethod === 'bank_mandiri' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('bank_bni')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'bank_bni' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-655'}`}
+                      >
+                        <span className="text-[12px] font-black text-orange-650 tracking-wide block uppercase font-mono mt-1">BNI</span>
+                        <span className="text-[9px] font-bold block">BNI VA</span>
+                        {paymentSelectedMethod === 'bank_bni' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('bank_bri')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'bank_bri' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-650'}`}
+                      >
+                        <span className="text-[12px] font-black text-indigo-700 tracking-wide block uppercase font-mono mt-1">BRI</span>
+                        <span className="text-[9px] font-bold block">BRI VA</span>
+                        {paymentSelectedMethod === 'bank_bri' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('bank_permata')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'bank_permata' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-650'}`}
+                      >
+                        <span className="text-[10px] font-black text-emerald-800 tracking-normal block uppercase font-mono mt-1">PERMATA</span>
+                        <span className="text-[9px] font-bold block font-sans">Permata VA</span>
+                        {paymentSelectedMethod === 'bank_permata' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Category B: Digital Wallet E-Wallets */}
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Kategori 2: Dompet Digital E-Wallet & QRIS</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('wallet_dana')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'wallet_dana' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-650'}`}
+                      >
+                        <span className="text-[12px] font-bold text-sky-500 tracking-wide block uppercase font-sans mt-0.5">DANA</span>
+                        <span className="text-[9px] font-bold text-slate-400">Instan Pay</span>
+                        {paymentSelectedMethod === 'wallet_dana' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('wallet_gopay')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'wallet_gopay' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-650'}`}
+                      >
+                        <span className="text-[12px] font-bold text-emerald-600 tracking-wide block uppercase font-mono mt-0.5">GoPay</span>
+                        <span className="text-[9px] font-bold text-slate-400">Gojek Pay</span>
+                        {paymentSelectedMethod === 'wallet_gopay' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('wallet_ovo')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'wallet_ovo' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-650'}`}
+                      >
+                        <span className="text-[12px] font-extrabold text-purple-700 tracking-wide block uppercase font-mono mt-0.5">OVO</span>
+                        <span className="text-[9px] font-bold text-slate-400">Ovo Cash</span>
+                        {paymentSelectedMethod === 'wallet_ovo' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('wallet_shopeepay')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'wallet_shopeepay' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-650'}`}
+                      >
+                        <span className="text-[11px] font-extrabold text-orange-550 tracking-tight block uppercase font-sans mt-0.5">ShopeePay</span>
+                        <span className="text-[9px] font-bold text-slate-400 font-mono">SeaMoney</span>
+                        {paymentSelectedMethod === 'wallet_shopeepay' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentMethod('qris')}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between items-center h-20 relative cursor-pointer ${paymentSelectedMethod === 'qris' ? 'border-pink-500 bg-pink-50/20 ring-1 ring-pink-500 text-slate-900 shadow-sm' : 'border-slate-150 hover:bg-slate-50 text-slate-650'}`}
+                      >
+                        <div className="flex font-black tracking-normal mt-0.5">
+                          <span className="text-red-500 text-[10px]">Q</span>
+                          <span className="text-blue-800 text-[10px]">R</span>
+                          <span className="text-teal-600 text-[10px]">I</span>
+                          <span className="text-amber-500 text-[10px]">S</span>
+                        </div>
+                        <span className="text-[8px] font-extrabold block bg-[#65748b]/10 text-slate-600 px-1 py-0.5 rounded font-sans">Logo QR</span>
+                        {paymentSelectedMethod === 'qris' && <span className="absolute -top-1 -right-1 bg-pink-500 text-white p-0.5 rounded-full text-[8px] font-black">✓</span>}
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Sub Options: Phone Number for E-Wallet trigger */}
+                {paymentSelectedMethod && paymentSelectedMethod.startsWith('wallet_') && (
+                  <div className="space-y-1.5 p-4 border border-slate-150 bg-slate-50 rounded-2xl animate-fade-in font-sans">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      Nomor Handphone Terdaftar ({paymentSelectedMethod === 'wallet_dana' ? 'DANA' : paymentSelectedMethod === 'wallet_gopay' ? 'Link GoPay' : paymentSelectedMethod === 'wallet_ovo' ? 'OVO ID' : 'ShopeePay Wallet'})
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 font-bold text-xs">+62</span>
+                      <input
+                        type="text"
+                        value={paymentEWalletPhone}
+                        onChange={(e) => setPaymentEWalletPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="812XXXXXXXX (Masukkan nomor HP tanpa angka 0 di depan)"
+                        className="block w-full pl-12 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-pink-500 text-xs font-semibold"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 italic block">Kami akan mengirimkan notifikasi push konfirmasi pembayaran atau verifikasi OTP ke nomor HP di atas.</span>
+                  </div>
+                )}
+
+                {paymentError && (
+                  <div className="p-3 bg-red-100 border border-red-200 text-red-800 text-xs font-bold rounded-xl font-sans">
+                    {paymentError}
+                  </div>
+                )}
+
+                {/* CTAs */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentModal(false)}
+                    className="px-5 py-2.5 border border-slate-200 text-slate-600 font-extrabold text-xs rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProcessPayment}
+                    className="px-6 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-pink-500/10 transition flex items-center space-x-1 cursor-pointer"
+                  >
+                    <span>Lanjutkan Pembayaran</span>
+                  </button>
+                </div>
+
+              </div>
+            )}
+
+            {/* STEP 2: PROCESSING (SPINNER GATEWAY) */}
+            {paymentStep === 'processing' && (
+              <div className="py-12 flex flex-col items-center justify-center text-center space-y-4 font-sans text-slate-800">
+                <div className="relative flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-16 h-16 w-16 w-16 border-4 border-pink-200 border-t-pink-500"></div>
+                  <CreditCard className="h-6 w-6 text-purple-600 absolute animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-base">Menghubungkan ke Saluran Secure Payment...</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Mohon menunggu sebentar, invoice {paymentInvoiceId} sedang diproses secara aman oleh gateway simulator Midtrans Indonesia.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: TRANSACTION INSTRUCTIONS / SIMULATION COMPONENT */}
+            {paymentStep === 'instruction' && (
+              <div className="space-y-6 text-sm">
+                
+                {/* Visual reminder count-down bar */}
+                <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl flex items-center justify-between text-amber-900 text-xs">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4 shrink-0 text-amber-600" />
+                    <span className="font-medium">Selesaikan Pembayaran Sebelum Kedaluwarsa:</span>
+                  </div>
+                  <strong className="font-mono text-amber-700">23:59:45</strong>
+                </div>
+
+                {/* Main Instruction Body depends on type */}
+                {paymentSelectedMethod && (
+                  (() => {
+                    // Scenario A: Virtual Account
+                    if (paymentSelectedMethod.startsWith('bank_')) {
+                      const bankName = paymentSelectedMethod === 'bank_bca' ? 'BCA' : paymentSelectedMethod === 'bank_mandiri' ? 'Mandiri' : paymentSelectedMethod === 'bank_bni' ? 'BNI' : paymentSelectedMethod === 'bank_bri' ? 'BRI' : 'Permata';
+                      return (
+                        <div className="space-y-4 font-sans">
+                          <div className="p-5 border border-slate-150 bg-slate-50 rounded-2xl space-y-3 text-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block font-sans">NOMOR VIRTUAL ACCOUNT {bankName}</span>
+                            <div className="flex items-center justify-center space-x-2.5">
+                              <span className="font-mono font-black text-2xl text-slate-900 tracking-wider">
+                                {paymentVaNumber}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(paymentVaNumber);
+                                  alert('Nomor Virtual Account disalin ke clipboard!');
+                                }}
+                                className="p-1.5 px-3 border border-pink-300 bg-pink-50 hover:bg-pink-100 text-pink-600 rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
+                              >
+                                <span>Salin</span>
+                              </button>
+                            </div>
+                            <div className="text-[11px] text-slate-500 max-w-md mx-auto leading-relaxed font-sans">
+                              Atas Nama Merchant: <strong className="text-slate-800 font-bold">EventPlannerKu Premium</strong> &bull; Total tagihan yang harus ditransfer persis: <strong className="text-pink-600">Rp{(paymentPrice - paymentDiscount + 2500).toLocaleString('id-ID')}</strong>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 border border-slate-100 p-4 rounded-2xl bg-white">
+                            <span className="text-xs font-bold text-slate-800 uppercase block tracking-wider mb-2 font-sans">Petunjuk Pembayaran Mudah :</span>
+                            <div className="space-y-2.5 text-xs text-slate-600 font-sans leading-relaxed">
+                              <div>
+                                <strong className="text-slate-900 block font-bold">Opsi 1: Lewat Mobile Banking (m-Banking)</strong>
+                                <p className="text-slate-500 pl-3">Buka aplikasi m-Banking Anda &rarr; Pilih menu <strong className="text-slate-800">Transfer / Virtual Account</strong> &rarr; Masukkan kode <strong className="font-mono text-purple-700 font-bold">{paymentVaNumber}</strong> &rarr; Layar m-Banking akan mengonfirmasi nominal, pastikan nominal terisi betul, lalu masukkan PIN m-Banking Anda.</p>
+                              </div>
+                              <div className="border-t border-slate-100 pt-2 font-sans">
+                                <strong className="text-slate-900 block font-bold">Opsi 2: Lewat ATM Fisik</strong>
+                                <p className="text-slate-500 pl-3 font-sans">Masukkan kartu & PIN &rarr; Pilih menu <strong className="text-slate-800">Transaksi Lainnya</strong> / <strong className="text-slate-800">Pembayaran</strong> &rarr; Pilih <strong className="text-slate-800">Virtual Account / Layanan Multi</strong> &rarr; Masukkan nomor VA di atas &rarr; Tekan <strong className="text-slate-800">YA / BAYAR</strong>.</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Scenario B: E-Wallet DANA/OVO/GoPay
+                    if (paymentSelectedMethod.startsWith('wallet_')) {
+                      const walletBrand = paymentSelectedMethod === 'wallet_dana' ? 'DANA Link' : paymentSelectedMethod === 'wallet_gopay' ? 'GoPay App' : paymentSelectedMethod === 'wallet_ovo' ? 'OVO PUSH' : 'ShopeePay Direct';
+                      return (
+                        <div className="space-y-4 font-sans text-slate-800">
+                          <div className="p-5 border border-slate-150 bg-slate-50 rounded-2xl text-center space-y-3">
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block font-sans">PENGIRIMAN PUSH NOTIFICATION KE HP</span>
+                            <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-bold font-sans">
+                              <span>Nomor Handphone Terdeteksi: +62 {paymentEWalletPhone}</span>
+                            </div>
+                            <h4 className="font-sans font-black text-slate-900 text-base">Cek Layar Smartphone Anda Sekarang!</h4>
+                            <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed font-sans">
+                              Permintaan otorisasi pembayaran subscription sebesar <strong className="text-pink-600 font-bold">Rp{(paymentPrice - paymentDiscount + 2500).toLocaleString('id-ID')}</strong> telah dikirimkan secara instan ke aplikasi <strong className="text-slate-850 font-bold">{walletBrand}</strong> di handphone Anda. Silakan buka aplikasi dan konfirmasi pemindahan saldo sebelum waktu habis.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Scenario C: QRIS Code Screen
+                    if (paymentSelectedMethod === 'qris') {
+                      return (
+                        <div className="space-y-4 font-sans text-slate-800">
+                          <div className="p-5 border border-slate-150 bg-slate-50 rounded-2xl text-center flex flex-col items-center space-y-3">
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block font-sans">DOKUMEN QRIS GPN NASIONAL STANDAR</span>
+                            
+                            {/* Visual QRIS Standard Logo card representation */}
+                            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col items-center space-y-2 shadow-sm font-sans">
+                              <div className="bg-[#1e3a8a] text-white text-[10px] font-black px-4 py-1 rounded w-full tracking-widest text-center flex justify-around items-center font-sans">
+                                <span>QRIS</span>
+                                <span className="text-[6px] font-normal opacity-70">GPN INDONESIA APPROVED</span>
+                              </div>
+                              <div className="p-2 border border-slate-100 rounded-lg bg-pink-500/5 select-none relative">
+                                {/* Simulated complex QR matrix box */}
+                                <div className="grid grid-cols-7 gap-1 w-36 h-36 p-1.5 bg-white">
+                                  {/* Corner clusters */}
+                                  <div className="bg-slate-900 p-1"><div className="bg-white h-full w-full"></div></div>
+                                  <div className="bg-slate-900"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-slate-900"></div>
+                                  <div className="bg-slate-900 p-1"><div className="bg-white h-full w-full"></div></div>
+
+                                  <div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div>
+
+                                  <div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div>
+
+                                  <div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-[#ec4899] p-0.5 rounded"><div className="bg-white h-full w-full rounded-sm"></div></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div>
+
+                                  <div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div>
+
+                                  <div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div>
+
+                                  <div className="bg-slate-900 p-1"><div className="bg-white h-full w-full"></div></div>
+                                  <div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-white"></div><div className="bg-slate-900"></div><div className="bg-slate-900"></div>
+                                  <div className="bg-slate-900 p-1"><div className="bg-white h-full w-full"></div></div>
+                                </div>
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                  <span className="bg-white text-pink-600 font-mono text-[8px] font-black px-1.5 py-0.5 border border-pink-300 rounded shadow-sm">GPN</span>
+                                </div>
+                              </div>
+                              <span className="font-bold text-[9px] text-[#1e293b] tracking-wider uppercase font-mono">NMID: ID103011245678</span>
+                            </div>
+
+                            <p className="text-xs text-slate-500 max-w-sm leading-relaxed font-sans">
+                              Pindai Kode QRIS di atas menggunakan aplikasi m-Banking (BCA, Mandiri, BRI, dll) atau dompet digital (DANA, Gopay, OVO, LinkAja, ShopeePay) Anda. Nominal sebesar <strong className="text-pink-600">Rp{(paymentPrice - paymentDiscount + 2500).toLocaleString('id-ID')}</strong> akan langsung tertera secara otomatis.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+                  })()
+                )}
+
+                {/* Simulator Success Trigger Panel */}
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-3xl space-y-2.5 text-center font-sans">
+                  <div className="flex items-center justify-center space-x-1 text-emerald-800">
+                    <Sparkles className="h-4 w-4 text-emerald-600" />
+                    <span className="text-xs font-bold uppercase tracking-wide">Simulator Instant Testing Evaluasi</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 max-w-md mx-auto">
+                    Tanpa memotong saldo asli, tekan tombol di bawah ini untuk mensimulasikan webhook dari server bank/fintech menyatakan bahwa pembayaran Anda telah sukses diselesaikan!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSimulatePaymentSuccess}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/10 transition cursor-pointer"
+                  >
+                    Simulasikan Pembayaran Berhasil Sekarang
+                  </button>
+                </div>
+
+                {/* CTAs */}
+                <div className="flex justify-between gap-3 pt-4 border-t border-slate-100 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentStep('select')}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold rounded-xl transition cursor-pointer"
+                  >
+                    Kembali & Ubah Metode
+                  </button>
+                  <span className="text-[10px] text-slate-400 self-center font-mono">ID Tagihan: {paymentInvoiceId}</span>
+                </div>
+
+              </div>
+            )}
+
+            {/* STEP 4: SUCCESS INVOICE (RECEIPT) */}
+            {paymentStep === 'success' && (
+              <div className="space-y-6">
+                
+                {/* Upper Splash Success animation header */}
+                <div className="text-center space-y-2">
+                  <div className="inline-flex p-3 bg-emerald-100 rounded-full text-emerald-600 animate-bounce">
+                    <CheckCircle className="h-10 w-10 fill-emerald-600 text-white" />
+                  </div>
+                  <h4 className="font-sans font-black text-slate-900 text-lg leading-snug">Pembayaran Langganan Sukses Terkonfirmasi!</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Selamat! Akun Anda telah resmi dideklarasikan sebagai keanggotaan Premium. Seluruh batasan fitur pada platform Anda telah dihapuskan secara instan.
+                  </p>
+                </div>
+
+                {/* HIGH FIDELITY INVOICE BLOCK */}
+                <div id="saas-invoice-block" className="border border-slate-200 rounded-2xl bg-slate-50 overflow-hidden font-sans text-xs">
+                  
+                  {/* Invoice Header details */}
+                  <div className="bg-gradient-to-r from-purple-950 to-slate-900 text-white p-4 flex justify-between items-center">
+                    <div>
+                      <span className="text-[8px] text-purple-300 font-black uppercase tracking-wider block">INVOICE PEMBAYARAN</span>
+                      <strong className="text-sm font-mono tracking-wider font-extrabold">{paymentInvoiceId}</strong>
+                    </div>
+                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold px-3 py-1 rounded-full text-[10px] uppercase font-mono tracking-wider">
+                      Lunas (Paid)
+                    </span>
+                  </div>
+
+                  {/* Invoice Body elements */}
+                  <div className="p-5 space-y-4 text-slate-800">
+                    
+                    {/* Customer details Grid */}
+                    <div className="grid grid-cols-2 gap-4 border-b border-slate-105 pb-3">
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase block mb-0.5">Diterbitkan Kepada:</span>
+                        <strong className="text-slate-900 block font-bold truncate">{user.name}</strong>
+                        <span className="text-[10px] text-slate-500 block truncate">{user.email}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase block mb-0.5">Status Instansi / Komunitas:</span>
+                        <strong className="text-slate-900 block font-bold truncate">{user.organization}</strong>
+                        <span className="text-[10px] text-slate-500 block truncate font-sans">Level: {user.plan === 'pro' ? 'Corporate Pro Member' : 'Standard Basic Member'}</span>
+                      </div>
+                    </div>
+
+                    {/* Transaction dates Grid */}
+                    <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-sans border-b border-slate-105 pb-3 bg-white p-2.5 rounded-xl border border-slate-100">
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase block font-sans">Tanggal Pembayaran</span>
+                        <strong className="text-slate-800 font-bold font-sans">22 Mei 2026</strong>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase block font-sans">Metode Pembayaran</span>
+                        <strong className="text-slate-800 font-bold uppercase font-sans">
+                          {paymentSelectedMethod ? paymentSelectedMethod.replace(/_/g, ' ') : 'MOCK'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-405 uppercase block font-sans">Siklus Kedaluwarsa</span>
+                        <strong className="text-slate-800 font-bold font-sans">22 Juni 2026</strong>
+                      </div>
+                    </div>
+
+                    {/* Breakdown items tabular representation */}
+                    <div className="space-y-1.5 font-sans pt-1">
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block tracking-wider">Rincian Perhitungan Biaya :</span>
+                      
+                      <div className="space-y-1 text-slate-600">
+                        <div className="flex justify-between items-center text-slate-700 font-sans">
+                          <span>1x Biaya Aktivasi Paket {paymentTargetPlan === 'basic' ? 'Basic Premium' : 'Pro Premium (Korporat)'}</span>
+                          <span className="font-mono">Rp{paymentPrice.toLocaleString('id-ID')}</span>
+                        </div>
+                        {paymentDiscount > 0 && (
+                          <div className="flex justify-between items-center text-emerald-600 font-medium font-sans">
+                            <span>Pemotongan Kode Kupon Promo ({paymentPromoCode.toUpperCase()})</span>
+                            <span className="font-mono font-bold">- Rp{paymentDiscount.toLocaleString('id-ID')}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center text-slate-700 font-sans">
+                          <span>Biaya Layanan Midtrans Secure Payment Gateway</span>
+                          <span className="font-mono">Rp2.500</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-200 mt-2 pt-2 flex justify-between items-center text-slate-950 font-black text-xs font-sans">
+                        <span className="text-purple-950 uppercase font-sans">TOTAL TRANSAKSI LUNAS (IDR)</span>
+                        <span className="text-pink-600 font-mono text-sm font-bold">
+                          Rp{(paymentPrice - paymentDiscount + 2500).toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Anti AI Slop simple authentic disclaimer credit */}
+                  <div className="bg-slate-100 p-3 text-center text-[9px] text-slate-400 italic font-mono border-t border-slate-150">
+                    Sistem Pembayaran Terakreditasi API &bull; EventPlannerKu Premium
+                  </div>
+
+                </div>
+
+                {/* CTAs Success Receipt */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl transition flex items-center justify-center space-x-2 border border-slate-200 cursor-pointer"
+                  >
+                    <Download className="h-4 w-4 shrink-0 text-slate-600" />
+                    <span className="font-sans">Unduh / Cetak Invoice (.PDF)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                    }}
+                    className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs rounded-xl transition shadow-lg shadow-purple-650/10 cursor-pointer"
+                  >
+                    <span className="font-sans">Selesai & Tutup Portal</span>
+                  </button>
+                </div>
+
+              </div>
+            )}
 
           </div>
         </div>
