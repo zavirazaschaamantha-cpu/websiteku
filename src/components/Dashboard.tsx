@@ -9,12 +9,13 @@ import {
   BarChart3, CheckCircle, XCircle, Trash2, LogOut, 
   MapPin, Clock, ArrowUpRight, Download, UserCheck, 
   Smile, Layers, Settings, Sparkles, Filter, 
-  UserPlus, CreditCard, Award, HelpCircle, RefreshCw, GraduationCap, Upload
+  UserPlus, CreditCard, Award, HelpCircle, RefreshCw, GraduationCap, Upload, MessageSquare
 } from 'lucide-react';
 import { Event, Participant, User, SaaSPlan } from '../types';
 import StudentDashboard from './StudentDashboard';
 import EventPlanner from './EventPlanner';
 import CertificateDesigner from './CertificateDesigner';
+import ChatRoom from './ChatRoom';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocFromServer, query } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
@@ -33,7 +34,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
   
   // Navigation
   const [roleMode, setRoleMode] = useState<'panitia' | 'peserta'>(user.role === 'mahasiswa' ? 'peserta' : 'panitia');
-  const [activeTab, setActiveTab] = useState<'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas' | 'planner' | 'sertifikat'>('ringkasan');
+  const [activeTab, setActiveTab] = useState<'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas' | 'planner' | 'sertifikat' | 'chat'>('ringkasan');
   
   // Event filtration
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
@@ -984,6 +985,15 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                 </button>
 
                 <button
+                  id="menu-tab-chat"
+                  onClick={() => setActiveTab('chat')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'chat' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Kanal Chat Luar</span>
+                </button>
+
+                <button
                   id="menu-tab-saas"
                   onClick={() => setActiveTab('saas')}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'saas' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
@@ -1052,6 +1062,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                   {activeTab === 'scanner' && 'E-Tiket & Scanner Absensi'}
                   {activeTab === 'planner' && 'Perumusan Struktur & Rangkaian Acara (Planner)'}
                   {activeTab === 'sertifikat' && 'Kustomisasi Desain E-Sertifikat'}
+                  {activeTab === 'chat' && 'Kamar Koordinasi & Komunikasi Live'}
                   {activeTab === 'saas' && 'Status Bisnis & Informasi SWOT'}
                 </>
               )}
@@ -2255,6 +2266,11 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
         {/* TAB 7: DESAIN SERTIFIKAT */}
         {activeTab === 'sertifikat' && (
           <CertificateDesigner />
+        )}
+
+        {/* TAB 8: KANAL CHAT LIVE */}
+        {activeTab === 'chat' && (
+          <ChatRoom user={user} events={events} participants={participants} />
         )}
       </>
     )}

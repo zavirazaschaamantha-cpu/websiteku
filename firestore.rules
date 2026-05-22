@@ -64,6 +64,18 @@ service cloud.firestore {
           && data.registeredAt is string;
     }
 
+    function isValidChatMessage(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.eventId is string && data.eventId.size() <= 128
+          && data.eventTitle is string && data.eventTitle.size() <= 150
+          && data.senderId is string && data.senderId.size() <= 128
+          && data.senderName is string && data.senderName.size() <= 100
+          && data.senderEmail is string && data.senderEmail.size() <= 100
+          && data.senderRole is string && (data.senderRole == 'mahasiswa' || data.senderRole == 'panitia')
+          && data.text is string && data.text.size() <= 1000
+          && data.createdAt is string;
+    }
+
     // --- COLLECTIONS SECURITY MATCHERS ---
 
     match /users/{userId} {
@@ -123,6 +135,18 @@ service cloud.firestore {
                     );
 
       allow delete: if isSignedIn();
+    }
+
+    match /chat_messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && isValidId(messageId)
+                    && messageId == incoming().id
+                    && incoming().senderId == request.auth.uid
+                    && isValidChatMessage(incoming())
+                    && incoming().keys().hasAll(['id', 'eventId', 'eventTitle', 'senderId', 'senderName', 'senderEmail', 'senderRole', 'text', 'createdAt'])
+                    && incoming().keys().size() == 9;
+      allow delete: if isSignedIn() && existing().senderId == request.auth.uid;
     }
   }
 }

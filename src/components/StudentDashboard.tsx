@@ -4,9 +4,10 @@ import {
   Ticket, QrCode, Award, BarChart2, Star, CheckCircle, 
   MapPin, Calendar as CalendarIcon, Search, SearchCode, Clock, 
   Download, Printer, Info, Compass, HelpCircle, GraduationCap,
-  Sparkles, CheckCircle2, ChevronRight, RefreshCw, AlertTriangle
+  Sparkles, CheckCircle2, ChevronRight, RefreshCw, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import { Event, Participant, User } from '../types';
+import ChatRoom from './ChatRoom';
 
 interface StudentDashboardProps {
   user: User;
@@ -24,7 +25,7 @@ export default function StudentDashboard({
   onViewEvents 
 }: StudentDashboardProps) {
   
-  const [activeTab, setActiveTab] = useState<'tiket' | 'sertifikat' | 'statistik'>('tiket');
+  const [activeTab, setActiveTab] = useState<'tiket' | 'sertifikat' | 'statistik' | 'chat'>('tiket');
   
   // Participant search email defaults to user's email
   const [studentEmail, setStudentEmail] = useState(user.email);
@@ -250,6 +251,22 @@ export default function StudentDashboard({
           >
             <BarChart2 className="h-4 w-4" />
             <span>Transkrip SKPI Kampus</span>
+          </button>
+
+          <button
+            id="student-tab-chat"
+            onClick={() => {
+              setActiveTab('chat');
+              setSelectedTicket(null);
+            }}
+            className={`px-4 py-2 border-b-2 text-xs font-extrabold transition flex items-center space-x-2 cursor-pointer ${
+              activeTab === 'chat' 
+                ? 'border-pink-500 text-pink-600 font-black' 
+                : 'border-transparent text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span>Chat Room Hubungi Panitia</span>
           </button>
 
         </div>
@@ -740,6 +757,12 @@ export default function StudentDashboard({
                 )}
               </div>
 
+            </div>
+          )}
+
+          {activeTab === 'chat' && (
+            <div className="animate-fade-in">
+              <ChatRoom user={user} events={events} participants={participants} />
             </div>
           )}
 

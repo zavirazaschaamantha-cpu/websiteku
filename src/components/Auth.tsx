@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Calendar, Mail, Lock, User, Building, ShieldCheck, ArrowLeft, Star, Heart, Eye, EyeOff, GraduationCap, Sparkles } from 'lucide-react';
+import { Calendar, Mail, Lock, User, Building, ShieldCheck, ArrowLeft, Star, Heart, Eye, EyeOff, GraduationCap, Sparkles, Phone, KeyRound, Check, Smartphone } from 'lucide-react';
 import { SaaSPlan, User as UserType } from '../types';
-import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -14,7 +14,14 @@ interface AuthProps {
 }
 
 export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSuccess, onNavigateBack }: AuthProps) {
-  const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(initialMode);
+  const [resetMethod, setResetMethod] = useState<'email' | 'phone'>('email');
+  const [phone, setPhone] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [userEnteredOtp, setUserEnteredOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [otpVerified, setOtpVerified] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -240,6 +247,64 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
     }
   };
 
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (resetMethod === 'email') {
+      if (!email) {
+        setError('Alamat email harus diisi.');
+        return;
+      }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        setSuccessMsg('Tautan atur ulang kata sandi (reset link) berhasil dikirim ke email Gmail Anda! Harap cek kotak masuk atau folder spam Anda.');
+      } catch (err: any) {
+        console.error(err);
+        if (err.code === 'auth/user-not-found') {
+          setError('Alamat email tersebut tidak terdaftar di sistem.');
+        } else {
+          setError(`Gagal mengirimkan link reset: ${err.message || err}`);
+        }
+      }
+    } else {
+      // Phone OTP reset
+      if (!phone) {
+        setError('Nomor handphone Anda harus dimasukkan.');
+        return;
+      }
+      if (!otpSent) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedOtp(code);
+        setOtpSent(true);
+        setSuccessMsg(`[SIMULASI HP] Kode OTP dikirim ke ${phone}. Masukkan kode: ${code}`);
+      } else if (!otpVerified) {
+        if (userEnteredOtp === generatedOtp) {
+          setOtpVerified(true);
+          setSuccessMsg('Verifikasi OTP sukses! Silakan tetapkan kata sandi baru Anda.');
+        } else {
+          setError('Kode OTP salah. Harap cocokkan kode simulasi di pesan hijau.');
+        }
+      } else {
+        if (newPassword.length < 6) {
+          setError('Kata sandi baru minimal memiliki panjang 6 karakter.');
+          return;
+        }
+        setSuccessMsg('Kata sandi berhasil disetel ulang! Mengalihkan Anda ke halaman masuk...');
+        setTimeout(() => {
+          setMode('login');
+          setOtpSent(false);
+          setOtpVerified(false);
+          setGeneratedOtp('');
+          setUserEnteredOtp('');
+          setNewPassword('');
+          setError('');
+        }, 2000);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden gradient-bg text-white">
       {/* Visual background decor */}
@@ -265,13 +330,25 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
           </div>
         </div>
         <h2 className="text-center font-sans text-3xl font-extrabold text-white leading-tight">
-          {mode === 'login' ? 'Masuk ke EventPlannerKu' : 'Mulai Kelola Event Anda'}
+          {mode === 'login' ? 'Masuk ke EventPlannerKu' : mode === 'signup' ? 'Mulai Kelola Event Anda' : 'Atur Ulang Sandi Akun'}
         </h2>
         <p className="mt-2 text-center text-sm text-white/70 font-sans">
-          {mode === 'login' ? (
+          {mode === 'forgot' ? (
+            <span>Ingat kata sandi Anda?{' '}
+              <button 
+                id="link-to-login-forgot"
+                type="button"
+                onClick={() => { setMode('login'); setError(''); setSuccessMsg(''); setOtpSent(false); }} 
+                className="font-bold text-pink-300 hover:text-pink-200 cursor-pointer"
+              >
+                kembali masuk ke sistem
+              </button>
+            </span>
+          ) : mode === 'login' ? (
             <span>Atau, jika Anda belum memiliki akun,{' '}
               <button 
                 id="link-to-signup"
+                type="button"
                 onClick={() => { setMode('signup'); setError(''); }} 
                 className="font-bold text-pink-300 hover:text-pink-200 cursor-pointer"
               >
@@ -282,6 +359,7 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
             <span>Sudah memiliki akun?{' '}
               <button 
                 id="link-to-login"
+                type="button"
                 onClick={() => { setMode('login'); setError(''); }} 
                 className="font-bold text-pink-300 hover:text-pink-200 cursor-pointer"
               >
@@ -307,199 +385,361 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'signup' && (
-              <>
-                {/* Role Selector Card */}
-                <div className="mb-5">
-                  <label className="block text-xs font-bold text-pink-200 uppercase tracking-widest mb-2 font-mono">Pilih Peran Utama</label>
-                  <div className="grid grid-cols-2 gap-3" id="role-selector-signup">
-                    <button
-                      id="signup-role-mahasiswa"
-                      type="button"
-                      onClick={() => {
-                        setSelectedRole('mahasiswa');
-                      }}
-                      className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
-                        selectedRole === 'mahasiswa'
-                          ? 'border-pink-500 bg-pink-500/10 text-white shadow-lg ring-1 ring-pink-500/20'
-                          : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full mb-1">
-                        <GraduationCap className={`h-5 w-5 ${selectedRole === 'mahasiswa' ? 'text-pink-400' : 'text-slate-400'}`} />
-                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                          selectedRole === 'mahasiswa' ? 'bg-pink-500/25 text-pink-300 font-extrabold' : 'bg-white/10 text-slate-300'
-                        }`}>PESERTA</span>
-                      </div>
-                      <span className="text-xs font-extrabold block">Mahasiswa</span>
-                      <span className="text-[9px] opacity-75 mt-1 leading-relaxed block">Peserta event & download sertifikat</span>
-                    </button>
-
-                    <button
-                      id="signup-role-panitia"
-                      type="button"
-                      onClick={() => {
-                        setSelectedRole('panitia');
-                      }}
-                      className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
-                        selectedRole === 'panitia'
-                          ? 'border-purple-500 bg-purple-500/10 text-white shadow-lg ring-1 ring-purple-500/20'
-                          : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full mb-1">
-                        <ShieldCheck className={`h-5 w-5 ${selectedRole === 'panitia' ? 'text-purple-400' : 'text-slate-400'}`} />
-                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                          selectedRole === 'panitia' ? 'bg-purple-500/25 text-purple-300 font-extrabold' : 'bg-white/10 text-slate-300'
-                        }`}>PANITIA BEM</span>
-                      </div>
-                      <span className="text-xs font-extrabold block">Panitia BEM</span>
-                      <span className="text-[9px] opacity-75 mt-1 leading-relaxed block">Manajemen, buat absensi & analisis scan</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Full Name */}
-                <div>
-                  <label htmlFor="auth-name" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Nama Lengkap</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
-                      <User className="h-4 w-4" />
+          {mode === 'forgot' ? (
+            <form onSubmit={handleForgotPasswordSubmit} className="space-y-4 animate-fade-in text-left">
+              <div>
+                <label className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-2 font-mono">Pilih Metode Verifikasi</label>
+                <div className="grid grid-cols-2 gap-3" id="method-selector-forgot">
+                  <button
+                    id="choose-email-reset"
+                    type="button"
+                    onClick={() => { setResetMethod('email'); setError(''); setSuccessMsg(''); setOtpSent(false); }}
+                    className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer h-24 ${resetMethod === 'email' ? 'border-pink-500 bg-pink-500/10 text-white shadow-lg ring-1 ring-pink-500/20' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/50'}`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <Mail className={`h-4 w-4 ${resetMethod === 'email' ? 'text-pink-400' : 'text-slate-400'}`} />
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${resetMethod === 'email' ? 'bg-pink-500/25 text-pink-300 font-extrabold' : 'bg-white/10 text-slate-300'}`}>GMAIL</span>
                     </div>
-                    <input
-                      id="auth-name"
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder={selectedRole === 'mahasiswa' ? 'Contoh: Andi Wijaya' : 'Contoh: Bagas Pratama'}
-                      className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
-                      required
-                    />
-                  </div>
-                </div>
+                    <span className="text-xs font-bold block">Gmail / Email</span>
+                    <span className="text-[8px] opacity-70 mt-1 leading-relaxed block truncate">Sandi baru via inbox email</span>
+                  </button>
 
-                {/* Organization */}
-                <div>
-                  <label htmlFor="auth-org" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">
-                    {selectedRole === 'mahasiswa' ? 'Asal Universitas & Jurusan' : 'Nama Instansi / Komunitas BEM'}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
-                      {selectedRole === 'mahasiswa' ? <GraduationCap className="h-4 w-4" /> : <Building className="h-4 w-4" />}
+                  <button
+                    id="choose-phone-reset"
+                    type="button"
+                    onClick={() => { setResetMethod('phone'); setError(''); setSuccessMsg(''); }}
+                    className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer h-24 ${resetMethod === 'phone' ? 'border-purple-500 bg-purple-500/10 text-white shadow-lg ring-1 ring-purple-500/20' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/50'}`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <Smartphone className={`h-4 w-4 ${resetMethod === 'phone' ? 'text-purple-400' : 'text-slate-400'}`} />
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${resetMethod === 'phone' ? 'bg-purple-500/25 text-purple-300 font-extrabold' : 'bg-white/10 text-slate-300'}`}>SMS / WA</span>
                     </div>
-                    <input
-                      id="auth-org"
-                      type="text"
-                      value={organization}
-                      onChange={(e) => setOrganization(e.target.value)}
-                      placeholder={selectedRole === 'mahasiswa' ? 'Contoh: Universitas Indonesia / Sistem Informasi' : 'Contoh: BEM Fakultas Ilmu Komputer UI'}
-                      className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
-                      required
-                    />
-                  </div>
+                    <span className="text-xs font-bold block">No HP Aktif</span>
+                    <span className="text-[8px] opacity-70 mt-1 leading-relaxed block truncate">Gunakan kode verifikasi OTP</span>
+                  </button>
                 </div>
+              </div>
 
-                {/* SaaS Subscription Plan Selector (Panitia Only) */}
-                {selectedRole === 'panitia' && (
+              {resetMethod === 'email' ? (
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Pilih Tingkat Paket SaaS</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <button
-                        id="opt-plan-free"
-                        type="button"
-                        onClick={() => setPlan('free')}
-                        className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'free' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
-                      >
-                        <span className="text-[10px] font-bold block">Free Plan</span>
-                        <span className="text-xs font-black">Gratis</span>
-                        <span className="text-[8px] opacity-60 block truncate">1 event/bln</span>
-                      </button>
-                      <button
-                        id="opt-plan-basic"
-                        type="button"
-                        onClick={() => setPlan('basic')}
-                        className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'basic' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
-                      >
-                        <span className="text-[10px] font-bold block">Basic Plan</span>
-                        <span className="text-xs font-black text-pink-300">Rp49rb</span>
-                        <span className="text-[8px] opacity-60 block truncate">Unlimited event</span>
-                      </button>
-                      <button
-                        id="opt-plan-pro"
-                        type="button"
-                        onClick={() => setPlan('pro')}
-                        className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'pro' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
-                      >
-                        <span className="text-[10px] font-bold block">Pro Plan</span>
-                        <span className="text-xs font-black text-pink-200">Rp99rb</span>
-                        <span className="text-[8px] opacity-60 block truncate">+ Analytics</span>
-                      </button>
+                    <label htmlFor="auth-reset-email" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Alamat Email Terdaftar</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
+                        <Mail className="h-4 w-4" />
+                      </div>
+                      <input
+                        id="auth-reset-email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Contoh: andi@student.ui.ac.id"
+                        className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
+                        required
+                      />
                     </div>
                   </div>
-                )}
-              </>
-            )}
 
-            {/* Email */}
-            <div>
-              <label htmlFor="auth-email" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Alamat Email</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
-                  <Mail className="h-4 w-4" />
+                  <button
+                    id="submit-email-reset"
+                    type="submit"
+                    className="w-full mt-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-sans font-bold text-sm rounded-xl transition shadow-lg flex items-center justify-center space-x-1 cursor-pointer"
+                  >
+                    <span>Kirim Link Verifikasi Ke Gmail</span>
+                  </button>
                 </div>
-                <input
-                  id="auth-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Contoh: nama@domain.com"
-                  className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
-                  required
-                />
-              </div>
-            </div>
+              ) : (
+                <div className="space-y-4">
+                  {!otpSent ? (
+                    <div>
+                      <label htmlFor="auth-reset-phone" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Nomor HP Terhubung Akun</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
+                          <Phone className="h-4 w-4" />
+                        </div>
+                        <input
+                          id="auth-reset-phone"
+                          type="tel"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          placeholder="Masukkan nomor telepon Anda, contoh: 081234567890"
+                          className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
+                          required
+                        />
+                      </div>
+                    </div>
+                  ) : !otpVerified ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label htmlFor="auth-reset-otp" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Kode Verifikasi OTP (6 Angka)</label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
+                            <KeyRound className="h-4 w-4" />
+                          </div>
+                          <input
+                            id="auth-reset-otp"
+                            type="text"
+                            maxLength={6}
+                            value={userEnteredOtp}
+                            onChange={(e) => setUserEnteredOtp(e.target.value)}
+                            placeholder="Ketik 6-digit OTP simulasi"
+                            className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm text-center font-mono font-bold tracking-widest transition"
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label htmlFor="auth-reset-new-password" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Kata Sandi Baru Anda</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
+                          <Lock className="h-4 w-4" />
+                        </div>
+                        <input
+                          id="auth-reset-new-password"
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Masukkan sandi baru minimal 6 karakter"
+                          className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
 
-            {/* Password */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label htmlFor="auth-password" className="block text-xs font-bold text-pink-200 uppercase tracking-wider font-mono">Kata Sandi</label>
-                {mode === 'login' && (
-                  <span className="text-[10px] font-bold text-pink-300 hover:text-white hover:underline cursor-pointer">Lupa Sandi?</span>
-                )}
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
-                  <Lock className="h-4 w-4" />
+                  <button
+                    id="submit-phone-step"
+                    type="submit"
+                    className="w-full mt-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-sans font-bold text-sm rounded-xl transition shadow-lg flex items-center justify-center space-x-1 cursor-pointer"
+                  >
+                    <span>
+                      {!otpSent 
+                        ? 'Dapatkan Kode OTP Sekarang' 
+                        : !otpVerified 
+                        ? 'Verifikasi Kode OTP HP' 
+                        : 'Simpan & Perbarui Kata Sandi'
+                      }
+                    </span>
+                  </button>
                 </div>
-                <input
-                  id="auth-password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Masukkan minimal 6 karakter"
-                  className="block w-full pl-10 pr-10 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
-                  required
-                />
+              )}
+
+              <div className="pt-2">
                 <button
-                  id="btn-toggle-password"
+                  id="btn-return-to-login"
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-white/50 hover:text-white transition cursor-pointer"
+                  onClick={() => { setMode('login'); setError(''); setSuccessMsg(''); setOtpSent(false); }}
+                  className="w-full py-2 bg-white/5 hover:bg-white/10 text-white/80 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Batalkan & Kembali</span>
                 </button>
               </div>
-            </div>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'signup' && (
+                <>
+                  {/* Role Selector Card */}
+                  <div className="mb-5">
+                    <label className="block text-xs font-bold text-pink-200 uppercase tracking-widest mb-2 font-mono">Pilih Peran Utama</label>
+                    <div className="grid grid-cols-2 gap-3" id="role-selector-signup">
+                      <button
+                        id="signup-role-mahasiswa"
+                        type="button"
+                        onClick={() => {
+                          setSelectedRole('mahasiswa');
+                        }}
+                        className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
+                          selectedRole === 'mahasiswa'
+                            ? 'border-pink-500 bg-pink-500/10 text-white shadow-lg ring-1 ring-pink-500/20'
+                            : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <GraduationCap className={`h-5 w-5 ${selectedRole === 'mahasiswa' ? 'text-pink-400' : 'text-slate-400'}`} />
+                          <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                            selectedRole === 'mahasiswa' ? 'bg-pink-500/25 text-pink-300 font-extrabold' : 'bg-white/10 text-slate-300'
+                          }`}>PESERTA</span>
+                        </div>
+                        <span className="text-xs font-extrabold block">Mahasiswa</span>
+                        <span className="text-[9px] opacity-75 mt-1 leading-relaxed block">Peserta event & download sertifikat</span>
+                      </button>
 
-            <button
-              id="auth-btn-submit"
-              type="submit"
-              className="w-full mt-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-sans font-bold text-sm rounded-xl transition shadow-lg shadow-pink-500/20 flex items-center justify-center space-x-1 cursor-pointer"
-            >
-              <span>{mode === 'login' ? 'Masuk ke Akun' : 'Daftar & Hubungkan'}</span>
-            </button>
-          </form>
+                      <button
+                        id="signup-role-panitia"
+                        type="button"
+                        onClick={() => {
+                          setSelectedRole('panitia');
+                        }}
+                        className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
+                          selectedRole === 'panitia'
+                            ? 'border-purple-500 bg-purple-500/10 text-white shadow-lg ring-1 ring-purple-500/20'
+                            : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <ShieldCheck className={`h-5 w-5 ${selectedRole === 'panitia' ? 'text-purple-400' : 'text-slate-400'}`} />
+                          <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                            selectedRole === 'panitia' ? 'bg-purple-500/25 text-purple-300 font-extrabold' : 'bg-white/10 text-slate-300'
+                          }`}>PANITIA BEM</span>
+                        </div>
+                        <span className="text-xs font-extrabold block">Panitia BEM</span>
+                        <span className="text-[9px] opacity-75 mt-1 leading-relaxed block">Manajemen, buat absensi & analisis scan</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Full Name */}
+                  <div>
+                    <label htmlFor="auth-name" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Nama Lengkap</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <input
+                        id="auth-name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder={selectedRole === 'mahasiswa' ? 'Contoh: Andi Wijaya' : 'Contoh: Bagas Pratama'}
+                        className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Organization */}
+                  <div>
+                    <label htmlFor="auth-org" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">
+                      {selectedRole === 'mahasiswa' ? 'Asal Universitas & Jurusan' : 'Nama Instansi / Komunitas BEM'}
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
+                        {selectedRole === 'mahasiswa' ? <GraduationCap className="h-4 w-4" /> : <Building className="h-4 w-4" />}
+                      </div>
+                      <input
+                        id="auth-org"
+                        type="text"
+                        value={organization}
+                        onChange={(e) => setOrganization(e.target.value)}
+                        placeholder={selectedRole === 'mahasiswa' ? 'Contoh: Universitas Indonesia / Sistem Informasi' : 'Contoh: BEM Fakultas Ilmu Komputer UI'}
+                        className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* SaaS Subscription Plan Selector (Panitia Only) */}
+                  {selectedRole === 'panitia' && (
+                    <div>
+                      <label className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Pilih Tingkat Paket SaaS</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          id="opt-plan-free"
+                          type="button"
+                          onClick={() => setPlan('free')}
+                          className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'free' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
+                        >
+                          <span className="text-[10px] font-bold block">Free Plan</span>
+                          <span className="text-xs font-black">Gratis</span>
+                          <span className="text-[8px] opacity-60 block truncate">1 event/bln</span>
+                        </button>
+                        <button
+                          id="opt-plan-basic"
+                          type="button"
+                          onClick={() => setPlan('basic')}
+                          className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'basic' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
+                        >
+                          <span className="text-[10px] font-bold block">Basic Plan</span>
+                          <span className="text-xs font-black text-pink-300">Rp49rb</span>
+                          <span className="text-[8px] opacity-60 block truncate">Unlimited event</span>
+                        </button>
+                        <button
+                          id="opt-plan-pro"
+                          type="button"
+                          onClick={() => setPlan('pro')}
+                          className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'pro' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
+                        >
+                          <span className="text-[10px] font-bold block">Pro Plan</span>
+                          <span className="text-xs font-black text-pink-200">Rp99rb</span>
+                          <span className="text-[8px] opacity-60 block truncate">+ Analytics</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Email */}
+              <div>
+                <label htmlFor="auth-email" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Alamat Email</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
+                    <Mail className="h-4 w-4" />
+                  </div>
+                  <input
+                    id="auth-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Contoh: nama@domain.com"
+                    className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label htmlFor="auth-password" className="block text-xs font-bold text-pink-200 uppercase tracking-wider font-mono">Kata Sandi</label>
+                  {mode === 'login' && (
+                    <button
+                      id="link-forgot-password-trigger"
+                      type="button"
+                      onClick={() => { setMode('forgot'); setError(''); setSuccessMsg(''); setOtpSent(false); }}
+                      className="text-[10px] font-bold text-pink-300 hover:text-white hover:underline cursor-pointer bg-transparent border-none outline-none"
+                    >
+                      Lupa Sandi?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <input
+                    id="auth-password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Masukkan minimal 6 karakter"
+                    className="block w-full pl-10 pr-10 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
+                    required
+                  />
+                  <button
+                    id="btn-toggle-password"
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-white/50 hover:text-white transition cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                id="auth-btn-submit"
+                type="submit"
+                className="w-full mt-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-sans font-bold text-sm rounded-xl transition shadow-lg shadow-pink-500/20 flex items-center justify-center space-x-1 cursor-pointer"
+              >
+                <span>{mode === 'login' ? 'Masuk ke Akun' : 'Daftar & Hubungkan'}</span>
+              </button>
+            </form>
+          )}
 
           {/* Google Sign In / UP Button */}
           <div className="mt-4">

@@ -50,6 +50,23 @@
         "attendedAt": { "type": "string", "description": "ISO timestamp for scanner check-in" }
       },
       "required": ["id", "eventId", "name", "email", "phone", "ticketCode", "status", "registeredAt"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "Messages sent in real-time between participants and organizers/committees",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique message ID" },
+        "eventId": { "type": "string", "description": "ID of the target event context" },
+        "eventTitle": { "type": "string", "description": "Copy of the event title" },
+        "senderId": { "type": "string", "description": "User ID of the message sender" },
+        "senderName": { "type": "string", "description": "Display name of the sender" },
+        "senderEmail": { "type": "string", "description": "Email address of the sender" },
+        "senderRole": { "type": "string", "enum": ["mahasiswa", "panitia"], "description": "Role of the sender" },
+        "text": { "type": "string", "description": "The message body" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of the message" }
+      },
+      "required": ["id", "eventId", "eventTitle", "senderId", "senderName", "senderEmail", "senderRole", "text", "createdAt"]
     }
   },
   "firestore": {
@@ -64,6 +81,10 @@
     "/participants/{participantId}": {
       "schema": "Participant",
       "description": "Registrations made by students for their respective events globally."
+    },
+    "/chat_messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Real-time communication messages for event coordination and support."
     }
   }
 }
