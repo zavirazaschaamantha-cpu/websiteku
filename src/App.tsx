@@ -9,15 +9,15 @@ import { initializeLocalStorage } from './data';
 import LandingPage from './components/LandingPage';
 import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
+import EventShowcase from './components/EventShowcase';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentView, setCurrentView] = useState<'landing' | 'events-public' | 'auth' | 'dashboard'>('landing');
   const [authState, setAuthState] = useState<{
-    show: boolean;
     mode: 'login' | 'signup';
     selectedPlan: SaaSPlan;
   }>({
-    show: false,
     mode: 'login',
     selectedPlan: 'basic'
   });
@@ -30,7 +30,9 @@ export default function App() {
     try {
       const activeSession = localStorage.getItem('ep_active_session');
       if (activeSession) {
-        setCurrentUser(JSON.parse(activeSession));
+        const u = JSON.parse(activeSession);
+        setCurrentUser(u);
+        setCurrentView('dashboard');
       }
     } catch (e) {
       console.error("Gagal membaca sesi berjalan", e);
@@ -47,9 +49,9 @@ export default function App() {
     if (!demoUser) {
       demoUser = {
         id: 'user_demo',
-        name: 'Budi Santoso',
+        name: 'Budi Santoso (Ketua BEM)',
         email: 'demo@eventku.id',
-        organization: 'PT Sinergi Kreatif Nusantara',
+        organization: 'Badan Eksekutif Mahasiswa (BEM) Universitas',
         plan: 'pro', // demo users get full visual features
         registeredAt: new Date().toISOString()
       };
@@ -63,12 +65,13 @@ export default function App() {
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
     localStorage.setItem('ep_active_session', JSON.stringify(user));
-    setAuthState({ ...authState, show: false });
+    setCurrentView('dashboard');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('ep_active_session');
+    setCurrentView('landing');
   };
 
   // Custom function to update current user's SaaS plan
@@ -90,31 +93,55 @@ export default function App() {
     localStorage.setItem('ep_users', JSON.stringify(savedUsers));
   };
 
+  // ROUTING RENDERER BLOCK
+  if (currentUser && currentView === 'dashboard') {
+    return (
+      <Dashboard 
+        user={currentUser} 
+        onLogout={handleLogout}
+        onUpdateUserPlan={handleUpdateUserPlan}
+        onViewPublicShowcase={() => setCurrentView('events-public')}
+      />
+    );
+  }
+
+  if (currentView === 'events-public') {
+    return (
+      <EventShowcase 
+        currentUser={currentUser}
+        onNavigateBack={() => {
+          if (currentUser) {
+            setCurrentView('dashboard');
+          } else {
+            setCurrentView('landing');
+          }
+        }}
+        onGoToDashboard={() => setCurrentView('dashboard')}
+      />
+    );
+  }
+
+  if (currentView === 'auth') {
+    return (
+      <Auth 
+        initialMode={authState.mode}
+        selectedPlan={authState.selectedPlan}
+        onAuthSuccess={handleLoginSuccess}
+        onNavigateBack={() => setCurrentView('landing')}
+      />
+    );
+  }
+
   return (
-    <>
-      {currentUser ? (
-        <Dashboard 
-          user={currentUser} 
-          onLogout={handleLogout}
-          onUpdateUserPlan={handleUpdateUserPlan}
-        />
-      ) : authState.show ? (
-        <Auth 
-          initialMode={authState.mode}
-          selectedPlan={authState.selectedPlan}
-          onAuthSuccess={handleLoginSuccess}
-          onNavigateBack={() => setAuthState({ ...authState, show: false })}
-        />
-      ) : (
-        <LandingPage 
-          onStartDemo={handleStartDemo}
-          onNavigateToAuth={(mode, plan = 'basic') => setAuthState({
-            show: true,
-            mode,
-            selectedPlan: plan
-          })}
-        />
-      )}
-    </>
+    <LandingPage 
+      currentUser={currentUser}
+      onStartDemo={handleStartDemo}
+      onViewEvents={() => setCurrentView('events-public')}
+      onNavigateToAuth={(mode, plan = 'basic') => {
+        setAuthState({ mode, selectedPlan: plan });
+        setCurrentView('auth');
+      }}
+      onGoToDashboard={() => setCurrentView('dashboard')}
+    />
   );
 }

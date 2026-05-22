@@ -2,10 +2,10 @@ import { Event, Participant, User } from './types';
 
 export const DEFAULT_USER: User = {
   id: 'user_demo',
-  name: 'Budi Santoso',
+  name: 'Budi Santoso (Ketua BEM)',
   email: 'demo@eventku.id',
-  organization: 'PT Sinergi Kreatif Nusantara',
-  plan: 'basic', // Default plan is basic
+  organization: 'Badan Eksekutif Mahasiswa (BEM) Universitas',
+  plan: 'pro', // Default plan is pro for demo ease
   registeredAt: '2026-01-15T08:00:00Z'
 };
 
@@ -13,39 +13,39 @@ export const INITIAL_EVENTS: Event[] = [
   {
     id: 'event_1',
     userId: 'user_demo',
-    title: 'Seminar Nasional: Masa Depan Artificial Intelligence di Dunia Pendidikan',
-    description: 'Seminar interaktif yang mengupas tuntas penerapan model AI dan Machine Learning untuk personalisasi pembelajaran di era digital. Dilengkapi dengan sesi tanya-jawab bersama para ahli industri nasional.',
+    title: 'Seminar Beasiswa Global & Pola Sukses Karir Mahasiswa di Era 4.0',
+    description: 'Bongkar tuntas tips & trik jitu menembus beasiswa penuh luar negeri (LPDP, Fulbright, Chevening) serta strategi menyusun Curriculum Vitae (CV) ATS-friendly bagi fresh graduate mahasiswa.',
     date: '2026-06-15',
     time: '09:00',
-    location: 'Auditorium Gd. Rektorat Lt. 3, Universitas Indonesia, Jakarta',
+    location: 'Gedung Balai Sidang Lt. 1, Kampus Depok, Universitas Indonesia',
     type: 'Seminar',
-    capacity: 150,
+    capacity: 350,
     ticketPrice: 0,
     status: 'Active'
   },
   {
     id: 'event_2',
     userId: 'user_demo',
-    title: 'Workshop Intensif: Membangun UI/UX Aplikasi Modern dengan Tailwind CSS & Figma',
-    description: 'Workshop praktis langkah demi langkah untuk merancang antarmuka pengguna (UI) yang memikat di Figma serta menerjemahkannya ke dalam kode responsif menggunakan Tailwind CSS v4.',
+    title: 'Workshop Intensif Figma & Front-End UI/UX Khusus Mahasiswa Pemula',
+    description: 'Pelatihan langsung langkah demi langkah dari nol menggunakan perangkat Figma kolaboratif hingga implementasi web responsif. Disponsori oleh Himpunan Mahasiswa Informatika (HMIF).',
     date: '2026-06-25',
     time: '13:00',
-    location: 'Sinergi CO-Working Space, Jl. Gading Serpong, Tangerang',
+    location: 'Lab Komputer Terpadu Gedung C, Universitas Indonesia',
     type: 'Workshop',
-    capacity: 50,
-    ticketPrice: 49000,
+    capacity: 60,
+    ticketPrice: 15000,
     status: 'Active'
   },
   {
     id: 'event_3',
     userId: 'user_demo',
-    title: 'Pelatihan Leadership Komunitas: Menggerakkan Organisasi di Era Baru',
-    description: 'Program akselerasi leadership khusus bagi ketua komunitas dan koordinator bidang untuk meningkatkan retensi anggota, menyusun program visioner, dan manajemen finansial mandiri.',
+    title: 'Lomba Debat Bahasa Inggris Antar-Fakultas (University Debate League 2026)',
+    description: 'Kompetisi adu gagasan kritis berlisensi internasional dengan sistem British Parliamentary. Memperebutkan Piala Bergilir Rektor & hadiah pembinaan prestasi mahasiswa.',
     date: '2026-07-02',
     time: '10:00',
-    location: 'Virtual via Zoom Meeting (Cloud Hosted)',
-    type: 'Pelatihan',
-    capacity: 250,
+    location: 'Gedung Pusat Kegiatan Mahasiswa (Pusgiwa) Lt. 2, Universitas Indonesia',
+    type: 'Lomba',
+    capacity: 100,
     ticketPrice: 0,
     status: 'Active'
   }

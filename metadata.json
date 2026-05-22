@@ -1,6 +1,6 @@
 {
   "name": "Event Planner Ku",
-  "description": "SmartEvent Planner - Aplikasi manajemen acara digital berbasis cloud untuk pendaftaran, tiket digital QR Code, absensi, dan analitik laporan real-time.",
+  "description": "EventPlannerKu Edisi Kampus - Aplikasi manajemen acara digital berbasis cloud khusus BEM, Himpunan, & UKM Mahasiswa untuk e-registrasi, tiket QR Code instan, absensi scanner gratis, dan visual memikat.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

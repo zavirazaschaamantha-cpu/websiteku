@@ -17,7 +17,7 @@ export interface Event {
   date: string;
   time: string;
   location: string;
-  type: 'Seminar' | 'Workshop' | 'Pelatihan' | 'Komunitas' | 'Sosialisasi';
+  type: 'Seminar' | 'Workshop' | 'Lomba' | 'Rapat' | 'Makrab' | 'Pelatihan' | 'Komunitas' | 'Sosialisasi';
   capacity: number;
   ticketPrice: number;
   status: 'Active' | 'Draft' | 'Ended';

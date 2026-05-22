@@ -16,9 +16,10 @@ interface DashboardProps {
   user: User;
   onLogout: () => void;
   onUpdateUserPlan: (newPlan: SaaSPlan) => void;
+  onViewPublicShowcase?: () => void;
 }
 
-export default function Dashboard({ user, onLogout, onUpdateUserPlan }: DashboardProps) {
+export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPublicShowcase }: DashboardProps) {
   // Database States
   const [events, setEvents] = useState<Event[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -38,7 +39,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
   const [newEventLocation, setNewEventLocation] = useState('');
   const [newEventCapacity, setNewEventCapacity] = useState(100);
   const [newEventPrice, setNewEventPrice] = useState(0);
-  const [newEventType, setNewEventType] = useState<'Seminar' | 'Workshop' | 'Pelatihan' | 'Komunitas' | 'Sosialisasi'>('Seminar');
+  const [newEventType, setNewEventType] = useState<'Seminar' | 'Workshop' | 'Lomba' | 'Rapat' | 'Makrab' | 'Pelatihan' | 'Komunitas' | 'Sosialisasi'>('Seminar');
   const [eventFormError, setEventFormError] = useState('');
 
   // Create Participant Form state
@@ -610,11 +611,33 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
               <Layers className="h-4 w-4" />
               <span>Bisnis & SaaS Info</span>
             </button>
+
+            {onViewPublicShowcase && (
+              <button
+                id="menu-tab-public-portal"
+                onClick={onViewPublicShowcase}
+                className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold text-pink-400 hover:bg-pink-500/10 hover:text-pink-300 transition-colors"
+              >
+                <ArrowUpRight className="h-4 w-4 text-pink-400 shrink-0" />
+                <span>Lihat Portal Event &bull; Live</span>
+              </button>
+            )}
           </nav>
         </div>
 
         {/* Logout action */}
-        <div className="p-4 border-t border-slate-800/80">
+        <div className="p-4 border-t border-slate-800/80 space-y-2">
+          {onViewPublicShowcase && (
+            <button
+              id="btn-return-landing-sb"
+              onClick={onViewPublicShowcase}
+              className="w-full flex items-center space-x-2 px-4 py-2 rounded-xl text-xs text-slate-400 hover:bg-slate-850 hover:text-slate-200 font-bold transition-all"
+            >
+              <ArrowUpRight className="h-4 w-4 text-slate-500" />
+              <span>Kembali ke Home</span>
+            </button>
+          )}
+
           <button
             id="btn-logout"
             onClick={onLogout}
@@ -1605,9 +1628,12 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan }: Dashboar
                   >
                     <option value="Seminar">Seminar</option>
                     <option value="Workshop">Workshop</option>
-                    <option value="Pelatihan">Pelatihan</option>
-                    <option value="Komunitas">Komunitas</option>
-                    <option value="Sosialisasi">Sosialisasi</option>
+                    <option value="Lomba">Lomba Akademik / Esports</option>
+                    <option value="Rapat">Rapat Anggota / Sidang</option>
+                    <option value="Makrab">Malam Keakraban (Makrab)</option>
+                    <option value="Pelatihan">Pelatihan / LDKM</option>
+                    <option value="Komunitas">Komunitas Mahasiswa</option>
+                    <option value="Sosialisasi">Sosialisasi Kampus</option>
                   </select>
                 </div>
 
