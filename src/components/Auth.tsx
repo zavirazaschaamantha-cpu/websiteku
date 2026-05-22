@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Calendar, Mail, Lock, User, Building, ShieldCheck, ArrowLeft, Star, Heart, Eye, EyeOff, GraduationCap, Sparkles } from 'lucide-react';
 import { SaaSPlan, User as UserType } from '../types';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -78,7 +78,7 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
     setError('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
@@ -88,96 +88,147 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
       return;
     }
 
-    const savedUsersStr = localStorage.getItem('ep_users') || '[]';
-    const savedUsers: UserType[] = JSON.parse(savedUsersStr);
+    try {
+      if (mode === 'login') {
+        let finalUser: UserType | null = null;
 
-    if (mode === 'login') {
-      // Login flow
-      // 1. Organizers Demo
-      if (email === 'demo@eventku.id' && password === 'password123') {
-        const demoUser = savedUsers.find(u => u.email === email);
-        if (demoUser) {
-          onAuthSuccess({ ...demoUser, role: 'panitia' });
+        // Is it the special demo user?
+        const isDemoPanitia = email === 'demo@eventku.id' && password === 'password123';
+        const isDemoMahasiswa = email === 'mhs@eventku.id' && password === 'password123';
+
+        if (isDemoPanitia || isDemoMahasiswa) {
+          // Attempt Firebase Auth sign in with demo credentials.
+          try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+            const docRef = doc(db, 'users', user.uid);
+            const userSnap = await getDoc(docRef);
+            if (userSnap.exists()) {
+              finalUser = userSnap.data() as UserType;
+            } else {
+              finalUser = {
+                id: user.uid,
+                name: isDemoPanitia ? 'Budi Santoso' : 'Andi Wijaya (Mahasiswa)',
+                email: email,
+                organization: isDemoPanitia ? 'Badan Eksekutif Mahasiswa (BEM) Universitas' : 'Fakultas Ilmu Komputer UI',
+                plan: isDemoPanitia ? 'pro' : 'free',
+                registeredAt: new Date().toISOString(),
+                role: isDemoPanitia ? 'panitia' : 'mahasiswa'
+              };
+              await setDoc(docRef, finalUser);
+            }
+          } catch (loginErr: any) {
+            // If the demo credentials don't exist in Firebase Auth yet, automatically register them!
+            if (loginErr.code === 'auth/user-not-found' || loginErr.code === 'auth/invalid-credential') {
+              const createCredential = await createUserWithEmailAndPassword(auth, email, password);
+              const user = createCredential.user;
+              finalUser = {
+                id: user.uid,
+                name: isDemoPanitia ? 'Budi Santoso' : 'Andi Wijaya (Mahasiswa)',
+                email: email,
+                organization: isDemoPanitia ? 'Badan Eksekutif Mahasiswa (BEM) Universitas' : 'Fakultas Ilmu Komputer UI',
+                plan: isDemoPanitia ? 'pro' : 'free',
+                registeredAt: new Date().toISOString(),
+                role: isDemoPanitia ? 'panitia' : 'mahasiswa'
+              };
+              await setDoc(doc(db, 'users', user.uid), finalUser);
+            } else {
+              throw loginErr;
+            }
+          }
         } else {
-          const defaultUser: UserType = {
-            id: 'user_demo',
-            name: 'Budi Santoso',
-            email: 'demo@eventku.id',
-            organization: 'Badan Eksekutif Mahasiswa (BEM) Universitas',
-            plan: 'pro',
-            registeredAt: new Date().toISOString(),
-            role: 'panitia'
-          };
-          savedUsers.push(defaultUser);
-          localStorage.setItem('ep_users', JSON.stringify(savedUsers));
-          onAuthSuccess(defaultUser);
+          // Regular Firebase email login
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          const user = userCredential.user;
+          const userDocRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userDocRef);
+          
+          if (userSnap.exists()) {
+            finalUser = userSnap.data() as UserType;
+          } else {
+            // In case user exists in Firebase Auth but profile doc does not
+            finalUser = {
+              id: user.uid,
+              name: user.displayName || email.split('@')[0],
+              email: email,
+              organization: 'Universitas Indonesia',
+              plan: 'free',
+              registeredAt: new Date().toISOString(),
+              role: 'mahasiswa'
+            };
+            await setDoc(userDocRef, finalUser);
+          }
         }
-        return;
-      }
 
-      // 2. Students Demo
-      if (email === 'mhs@eventku.id' && password === 'password123') {
-        const mhsUser = savedUsers.find(u => u.email === email);
-        if (mhsUser) {
-          onAuthSuccess({ ...mhsUser, role: 'mahasiswa' });
-        } else {
-          const defaultMhs: UserType = {
-            id: 'user_mhs_demo',
-            name: 'Andi Wijaya (Mahasiswa)',
-            email: 'mhs@eventku.id',
-            organization: 'Fakultas Ilmu Komputer UI',
-            plan: 'free',
-            registeredAt: new Date().toISOString(),
-            role: 'mahasiswa'
-          };
-          savedUsers.push(defaultMhs);
+        // Keep local storage backward-compatible as well
+        const savedUsersStr = localStorage.getItem('ep_users') || '[]';
+        const savedUsers: UserType[] = JSON.parse(savedUsersStr);
+        if (!savedUsers.some(u => u.id === finalUser?.id)) {
+          savedUsers.push(finalUser!);
           localStorage.setItem('ep_users', JSON.stringify(savedUsers));
-          onAuthSuccess(defaultMhs);
         }
-        return;
-      }
 
-      // 3. Regular users
-      const matchedUser = savedUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (matchedUser) {
-        onAuthSuccess(matchedUser);
+        setSuccessMsg('Masuk berhasil!');
+        setTimeout(() => {
+          if (finalUser) {
+            onAuthSuccess(finalUser);
+          }
+        }, 1000);
+
       } else {
-        setError('Kombinasi email dan password kurang tepat atau belum terdaftar.');
-      }
-    } else {
-      // Sign Up flow
-      if (!name) {
-        setError('Silakan lengkapi nama lengkap Anda.');
-        return;
-      }
-      if (selectedRole === 'panitia' && !organization) {
-        setError('Silakan lengkapi nama organisasi atau instansi kepanitiaan Anda.');
-        return;
-      }
+        // Sign Up flow
+        if (!name) {
+          setError('Silakan lengkapi nama lengkap Anda.');
+          return;
+        }
+        if (selectedRole === 'panitia' && !organization) {
+          setError('Silakan lengkapi nama organisasi atau instansi kepanitiaan Anda.');
+          return;
+        }
 
-      const emailExists = savedUsers.some(u => u.email.toLowerCase() === email.toLowerCase());
-      if (emailExists) {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        const finalUser: UserType = {
+          id: user.uid,
+          name,
+          email,
+          organization: selectedRole === 'mahasiswa' ? (organization || 'Universitas Indonesia') : organization,
+          plan: selectedRole === 'mahasiswa' ? 'free' : plan,
+          registeredAt: new Date().toISOString(),
+          role: selectedRole
+        };
+
+        await setDoc(doc(db, 'users', user.uid), finalUser);
+
+        // Keep local storage backward-compatible
+        const savedUsersStr = localStorage.getItem('ep_users') || '[]';
+        const savedUsers: UserType[] = JSON.parse(savedUsersStr);
+        if (!savedUsers.some(u => u.id === finalUser.id)) {
+          savedUsers.push(finalUser);
+          localStorage.setItem('ep_users', JSON.stringify(savedUsers));
+        }
+
+        setSuccessMsg(`Pendaftaran akun ${selectedRole === 'mahasiswa' ? 'Mahasiswa' : 'Panitia'} berhasil! Mengalihkan ke dashboard...`);
+        setTimeout(() => {
+          onAuthSuccess(finalUser);
+        }, 1500);
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/email-already-in-use') {
         setError('Alamat email tersebut sudah terdaftar di sistem.');
-        return;
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password terlalu-lemah. Password harus minimal 6 karakter.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Format alamat email tidak valid.');
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('Kombinasi email dan password kurang tepat atau belum terdaftar.');
+      } else if (err.code === 'auth/admin-restricted-operation') {
+        setError('Pendaftaran via Email dinonaktifkan di Firebase Console. Pastikan tab "Authentication > Sign-in method" sudah meng-enable provider "Email/Password".');
+      } else {
+        setError(`Kesalahan Registrasi/Login: ${err.message || err}`);
       }
-
-      const newUser: UserType = {
-        id: `user_${Date.now()}`,
-        name,
-        email,
-        organization: selectedRole === 'mahasiswa' ? (organization || 'Universitas Indonesia') : organization,
-        plan: selectedRole === 'mahasiswa' ? 'free' : plan,
-        registeredAt: new Date().toISOString(),
-        role: selectedRole
-      };
-
-      savedUsers.push(newUser);
-      localStorage.setItem('ep_users', JSON.stringify(savedUsers));
-      
-      setSuccessMsg(`Pendaftaran akun ${selectedRole === 'mahasiswa' ? 'Mahasiswa' : 'Panitia'} berhasil! Mengalihkan ke dashboard...`);
-      setTimeout(() => {
-        onAuthSuccess(newUser);
-      }, 1500);
     }
   };
 
