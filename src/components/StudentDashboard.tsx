@@ -382,9 +382,19 @@ export default function StudentDashboard({
                           {/* Low end QR Code barcode scan section */}
                           <div className="p-6 bg-black/40 flex flex-col items-center justify-center space-y-4 text-center">
                             
-                            <div className="p-3 bg-white border border-slate-800 rounded-2xl">
-                              <QrCode className="h-28 w-28 text-slate-900" />
+                            <div className="p-3.5 bg-white border-2 border-slate-700 rounded-3xl relative shadow-md flex items-center justify-center min-w-[140px] min-h-[140px] group transition-all hover:border-pink-500 duration-300">
+                              <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=0f172a&data=${encodeURIComponent(
+                                  window.location.origin + '/?scan_ticket=' + selectedTicket.ticketCode
+                                )}`} 
+                                alt={`QR Code ${selectedTicket.ticketCode}`} 
+                                className="h-32 w-32 object-contain transition-transform duration-300 group-hover:scale-105"
+                                referrerPolicy="no-referrer"
+                              />
                             </div>
+                            <span className="text-[9px] text-pink-300/80 font-medium px-4 leading-relaxed block max-w-xs -mt-1">
+                              Pindai QR di atas menggunakan kamera handphone atau scanner panitia untuk mencatat absensi kehadiran secara instan.
+                            </span>
 
                             <div className="space-y-1">
                               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">ID KODE BOARDING PASS</span>
