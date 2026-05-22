@@ -1,0 +1,6 @@
+{
+  "name": "Event Planner Ku",
+  "description": "SmartEvent Planner - Aplikasi manajemen acara digital berbasis cloud untuk pendaftaran, tiket digital QR Code, absensi, dan analitik laporan real-time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
