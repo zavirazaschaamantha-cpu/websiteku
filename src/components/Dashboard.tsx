@@ -15,6 +15,9 @@ import { Event, Participant, User, SaaSPlan } from '../types';
 import StudentDashboard from './StudentDashboard';
 import EventPlanner from './EventPlanner';
 import CertificateDesigner from './CertificateDesigner';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocFromServer, query } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 
 interface DashboardProps {
   user: User;
@@ -183,7 +186,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
     }
   };
 
-  // Load database from localStorage
+  // Load database from localStorage & sync with Firestore
   const loadDatabase = () => {
     try {
       const savedEvents = localStorage.getItem('ep_events');
@@ -197,16 +200,130 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
 
   useEffect(() => {
     loadDatabase();
+
+    let unsubEvents: (() => void) | null = null;
+    let unsubParts: (() => void) | null = null;
+
+    const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
+      // Clean up previous listeners if any to prevent memory leaks or dual bindings
+      if (unsubEvents) {
+        unsubEvents();
+        unsubEvents = null;
+      }
+      if (unsubParts) {
+        unsubParts();
+        unsubParts = null;
+      }
+
+      if (currentUser) {
+        console.log("Firebase Authenticated Successfully: ", currentUser.uid, currentUser.isAnonymous ? "Anonymous User" : "Google User");
+
+        // 1. Validate background connection state
+        try {
+          await getDocFromServer(doc(db, 'test', 'connection'));
+        } catch (e) {
+          console.warn("Firestore connection confirmation failed or offline state:", e);
+        }
+
+        // 2. Real-time events sync snapshot
+        unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
+          const remoteEvents: Event[] = [];
+          snapshot.forEach((snapDoc) => {
+            remoteEvents.push(snapDoc.data() as Event);
+          });
+          if (remoteEvents.length > 0) {
+            setEvents(remoteEvents);
+            localStorage.setItem('ep_events', JSON.stringify(remoteEvents));
+          }
+        }, (err) => {
+          console.warn("Real-time cloud events sync is limited or restricted for current privileges: ", err.message);
+        });
+
+        // 3. Real-time participants sync snapshot
+        unsubParts = onSnapshot(collection(db, 'participants'), (snapshot) => {
+          const remoteParts: Participant[] = [];
+          snapshot.forEach((snapDoc) => {
+            remoteParts.push(snapDoc.data() as Participant);
+          });
+          if (remoteParts.length > 0) {
+            setParticipants(remoteParts);
+            localStorage.setItem('ep_participants', JSON.stringify(remoteParts));
+          }
+        }, (err) => {
+          console.warn("Real-time cloud participants sync is limited or restricted for current privileges: ", err.message);
+        });
+
+      } else {
+        console.log("Not signed in. Running in offline-first LocalStorage mode.");
+        
+        // Attempt anonymous fallback sign-in
+        try {
+          await signInAnonymously(auth);
+        } catch (authErr: any) {
+          if (authErr.code === 'auth/admin-restricted-operation') {
+            console.log(
+              "Firestore Sync Info: Anonymous authentication is disabled in your Firebase Console. " +
+              "This is the standard secure default. Cloud state synchronization will become active " +
+              "as soon as you authenticate using the Google Login option."
+            );
+          } else {
+            console.warn("Standard anonymous authentication failed: ", authErr.message);
+          }
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubEvents) unsubEvents();
+      if (unsubParts) unsubParts();
+    };
   }, []);
 
-  const saveEventsToStorage = (updatedEvents: Event[]) => {
+  const saveEventsToStorage = async (updatedEvents: Event[]) => {
     setEvents(updatedEvents);
     localStorage.setItem('ep_events', JSON.stringify(updatedEvents));
+
+    // Refuse database writes if not explicitly authenticated with an active session
+    if (!auth.currentUser) return;
+
+    try {
+      // Find deleted events and delete from Firestore
+      const deleted = events.filter(e => !updatedEvents.some(u => u.id === e.id));
+      for (const del of deleted) {
+        await deleteDoc(doc(db, 'events', del.id));
+      }
+
+      // Add or update events
+      for (const ev of updatedEvents) {
+        await setDoc(doc(db, 'events', ev.id), ev);
+      }
+    } catch (error) {
+      console.warn("Firestore cloud events write error (falling back to offline local state):", error);
+    }
   };
 
-  const saveParticipantsToStorage = (updatedParts: Participant[]) => {
+  const saveParticipantsToStorage = async (updatedParts: Participant[]) => {
     setParticipants(updatedParts);
     localStorage.setItem('ep_participants', JSON.stringify(updatedParts));
+
+    // Refuse database writes if not explicitly authenticated with an active session
+    if (!auth.currentUser) return;
+
+    try {
+      // Find deleted participants
+      const deleted = participants.filter(p => !updatedParts.some(u => u.id === p.id));
+      for (const del of deleted) {
+        await deleteDoc(doc(db, 'participants', del.id));
+      }
+
+      // Add or update participants
+      for (const part of updatedParts) {
+        await setDoc(doc(db, 'participants', part.id), part);
+      }
+    } catch (error) {
+      console.warn("Firestore cloud participants write error (falling back to offline local state):", error);
+    }
   };
 
   // Helper computations

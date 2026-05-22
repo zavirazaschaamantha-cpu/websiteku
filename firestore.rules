@@ -1,0 +1,128 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE SECURITY PRIMITIVES ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- ENTITY SCHEMA VALIDATORS ---
+    function isValidUser(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.name is string && data.name.size() <= 100
+          && data.email is string && data.email.size() <= 100
+          && data.organization is string && data.organization.size() <= 100
+          && data.role is string && (data.role == 'mahasiswa' || data.role == 'panitia')
+          && data.plan is string && (data.plan == 'free' || data.plan == 'basic' || data.plan == 'pro')
+          && data.registeredAt is string;
+    }
+
+    function isValidEvent(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.userId is string && data.userId.size() <= 128
+          && data.title is string && data.title.size() <= 150
+          && data.description is string && data.description.size() <= 1000
+          && data.date is string && data.date.size() <= 30
+          && data.time is string && data.time.size() <= 30
+          && data.location is string && data.location.size() <= 200
+          && data.type is string && (data.type == 'Seminar' || data.type == 'Workshop' || data.type == 'Lomba' || data.type == 'Rapat' || data.type == 'Makrab' || data.type == 'Pelatihan' || data.type == 'Komunitas' || data.type == 'Sosialisasi')
+          && data.capacity is int && data.capacity >= 0
+          && data.ticketPrice is int && data.ticketPrice >= 0
+          && data.status is string && (data.status == 'Active' || data.status == 'Draft' || data.status == 'Ended');
+    }
+
+    function isValidParticipant(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.eventId is string && data.eventId.size() <= 123
+          && data.name is string && data.name.size() <= 100
+          && data.email is string && data.email.size() <= 100
+          && data.phone is string && data.phone.size() <= 30
+          && data.ticketCode is string && data.ticketCode.size() <= 50
+          && data.status is string && (data.status == 'Registered' || data.status == 'Attended')
+          && data.registeredAt is string;
+    }
+
+    // --- COLLECTIONS SECURITY MATCHERS ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() 
+                    && request.auth.uid == userId 
+                    && isValidId(userId)
+                    && isValidUser(incoming())
+                    && incoming().keys().hasAll(['id', 'name', 'email', 'organization', 'role', 'plan', 'registeredAt'])
+                    && incoming().keys().size() == 7;
+                    
+      allow update: if isSignedIn() 
+                    && request.auth.uid == userId 
+                    && isValidUser(incoming())
+                    && incoming().role == existing().role
+                    && incoming().plan == existing().plan
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'organization']);
+    }
+
+    match /events/{eventId} {
+      allow read: if isSignedIn();
+      allow create: if isVerifiedUser()
+                    && isValidId(eventId)
+                    && eventId == incoming().id
+                    && incoming().userId == request.auth.uid
+                    && isValidEvent(incoming())
+                    && incoming().keys().hasAll(['id', 'userId', 'title', 'description', 'date', 'time', 'location', 'type', 'capacity', 'ticketPrice', 'status'])
+                    && incoming().keys().size() == 11;
+
+      allow update: if isVerifiedUser()
+                    && incoming().userId == existing().userId
+                    && existing().userId == request.auth.uid
+                    && isValidEvent(incoming())
+                    && (
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'date', 'time', 'location', 'type', 'capacity', 'ticketPrice', 'status'])
+                    );
+
+      allow delete: if isVerifiedUser()
+                    && existing().userId == request.auth.uid;
+    }
+
+    match /participants/{participantId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && isValidId(participantId)
+                    && participantId == incoming().id
+                    && isValidParticipant(incoming())
+                    && incoming().keys().hasAll(['id', 'eventId', 'name', 'email', 'phone', 'ticketCode', 'status', 'registeredAt'])
+                    && incoming().keys().size() == 8;
+
+      allow update: if isSignedIn()
+                    && isValidParticipant(incoming())
+                    && (
+                      // Student self-cancels/updates OR Panitia changes status and registration check-in details
+                      incoming().diff(existing()).affectedKeys().hasAny(['status', 'attendedAt'])
+                    );
+
+      allow delete: if isSignedIn();
+    }
+  }
+}

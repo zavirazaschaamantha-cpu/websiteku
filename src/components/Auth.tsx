@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Calendar, Mail, Lock, User, Building, ShieldCheck, ArrowLeft, Star, Heart, Eye, EyeOff, GraduationCap, Sparkles } from 'lucide-react';
 import { SaaSPlan, User as UserType } from '../types';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { auth, db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface AuthProps {
   initialMode: 'login' | 'signup';
@@ -21,6 +24,45 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setSuccessMsg('');
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      const userDocRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userDocRef);
+      
+      let finalUser: UserType;
+      if (userSnap.exists()) {
+        finalUser = userSnap.data() as UserType;
+        // Keep the role from the stored document
+      } else {
+        // Create new user profile in Firestore
+        finalUser = {
+          id: user.uid,
+          name: user.displayName || 'Pengguna Baru',
+          email: user.email || '',
+          organization: selectedRole === 'panitia' ? (organization || 'BEM Universitas') : (organization || 'Universitas Indonesia'),
+          plan: selectedRole === 'mahasiswa' ? 'free' : plan,
+          registeredAt: new Date().toISOString(),
+          role: selectedRole
+        };
+        await setDoc(userDocRef, finalUser);
+      }
+      
+      setSuccessMsg('Masuk dengan Google berhasil!');
+      setTimeout(() => {
+        onAuthSuccess(finalUser);
+      }, 1000);
+    } catch (err: any) {
+      console.error(err);
+      setError('Gagal masuk menggunakan Google. Pastikan izin popup browser Anda aktif.');
+    }
+  };
 
   const handleAutofillPanitia = () => {
     setEmail('demo@eventku.id');
@@ -399,6 +441,42 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
               <span>{mode === 'login' ? 'Masuk ke Akun' : 'Daftar & Hubungkan'}</span>
             </button>
           </form>
+
+          {/* Google Sign In / UP Button */}
+          <div className="mt-4">
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-white/10"></div>
+              <span className="flex-shrink mx-4 text-[10px] text-white/40 uppercase font-mono font-bold">atau</span>
+              <div className="flex-grow border-t border-white/10"></div>
+            </div>
+
+            <button
+              id="btn-google-auth"
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-900 font-sans font-extrabold text-xs rounded-xl transition shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="#ea4335"
+                  d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582l3.51-3.51C17.642 1.09 14.974 0 12 0 7.354 0 3.307 2.67 1.242 6.577l4.024 3.188z"
+                />
+                <path
+                  fill="#4285f4"
+                  d="M23.49 12.275c0-.825-.075-1.613-.19-2.387H12v4.513h6.44c-.277 1.463-1.1 2.7-2.341 3.537l3.65 2.831c2.13-1.963 3.741-4.851 3.741-8.5z"
+                />
+                <path
+                  fill="#fbbc05"
+                  d="M5.266 14.235L1.242 17.42A11.966 11.966 0 0 0 12 24c3.048 0 5.89-.995 8.01-2.738l-3.65-2.831c-1.164.78-2.656 1.233-4.36 1.233-3.328 0-6.148-2.247-7.15-5.265l-4.024 3.188z"
+                />
+                <path
+                  fill="#34a853"
+                  d="M12 4.909c1.817 0 3.456.626 4.738 1.836l3.51-3.51C17.64 1.143 14.97 0 12 0 7.354 0 3.307 2.67 1.242 6.577l4.024 3.188C6.276 6.74 9.096 4.909 12 4.909z"
+                />
+              </svg>
+              <span>{mode === 'login' ? 'Masuk dengan Google' : 'Masuk dengan Google'}</span>
+            </button>
+          </div>
 
           {/* Quick Demo Autofill section */}
           {mode === 'login' && (
