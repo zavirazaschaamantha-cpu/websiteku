@@ -8,9 +8,10 @@ import {
   BarChart3, CheckCircle, XCircle, Trash2, LogOut, 
   MapPin, Clock, ArrowUpRight, Download, UserCheck, 
   Smile, Layers, Settings, Sparkles, Filter, 
-  UserPlus, CreditCard, Award, HelpCircle, RefreshCw
+  UserPlus, CreditCard, Award, HelpCircle, RefreshCw, GraduationCap
 } from 'lucide-react';
 import { Event, Participant, User, SaaSPlan } from '../types';
+import StudentDashboard from './StudentDashboard';
 
 interface DashboardProps {
   user: User;
@@ -25,6 +26,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
   const [participants, setParticipants] = useState<Participant[]>([]);
   
   // Navigation
+  const [roleMode, setRoleMode] = useState<'panitia' | 'peserta'>(user.role === 'mahasiswa' ? 'peserta' : 'panitia');
   const [activeTab, setActiveTab] = useState<'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas'>('ringkasan');
   
   // Event filtration
@@ -558,59 +560,91 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
             <div className="min-w-0 flex-1">
               <h4 className="text-xs font-bold text-slate-100 truncate">{user.name}</h4>
               <p className="text-[10px] text-slate-400 truncate">{user.organization}</p>
-              <div className="mt-1 inline-flex items-center space-x-1 px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/35 text-[9px] font-bold uppercase rounded-full">
-                <Sparkles className="h-2 w-2 text-pink-400" />
-                <span>{user.plan === 'free' ? 'Free Member' : user.plan === 'basic' ? 'Basic Member' : 'Pro Member'}</span>
-              </div>
+              {user.role === 'mahasiswa' ? (
+                <div className="mt-1 inline-flex items-center space-x-1 px-2 py-0.5 bg-pink-500/20 text-pink-300 border border-pink-500/35 text-[9px] font-bold uppercase rounded-full">
+                  <GraduationCap className="h-3 w-3 text-pink-400" />
+                  <span>Mahasiswa Aktif</span>
+                </div>
+              ) : (
+                <div className="mt-1 inline-flex items-center space-x-1 px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/35 text-[9px] font-bold uppercase rounded-full">
+                  <Sparkles className="h-2 w-2 text-pink-400" />
+                  <span>{user.plan === 'free' ? 'Free Member' : user.plan === 'basic' ? 'Basic Member' : 'Pro Member'}</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Navigation Items */}
           <nav className="px-3 space-y-1">
-            <button
-              id="menu-tab-ringkasan"
-              onClick={() => setActiveTab('ringkasan')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'ringkasan' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span>Ringkasan & Laporan</span>
-            </button>
+            {roleMode === 'peserta' ? (
+              <>
+                <div className="p-3 bg-pink-500/10 border border-pink-500/15 rounded-xl mb-3">
+                  <p className="text-[10px] text-pink-300 font-sans leading-relaxed text-center">
+                    Anda sedang login dengan identitas <strong className="text-white">{user.name}</strong> sebagai mahasiswa aktif.
+                  </p>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="px-4 py-2 text-[9px] text-slate-500 font-bold uppercase tracking-wider block font-mono">
+                    Utilitas Peserta
+                  </div>
+                  <button
+                    id="menu-tab-peserta-home"
+                    className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold bg-pink-500/10 text-pink-300 border border-pink-500/25 cursor-default text-left"
+                  >
+                    <Ticket className="h-4 w-4 text-pink-400" />
+                    <span>Layanan Portofolio Anda</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <button
+                  id="menu-tab-ringkasan"
+                  onClick={() => setActiveTab('ringkasan')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'ringkasan' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Ringkasan & Laporan</span>
+                </button>
 
-            <button
-              id="menu-tab-events"
-              onClick={() => setActiveTab('events')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'events' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
-            >
-              <Calendar className="h-4 w-4" />
-              <span>Kelola Event</span>
-            </button>
+                <button
+                  id="menu-tab-events"
+                  onClick={() => setActiveTab('events')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'events' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
+                >
+                  <Calendar className="h-4 w-4" />
+                  <span>Kelola Event</span>
+                </button>
 
-            <button
-              id="menu-tab-peserta"
-              onClick={() => setActiveTab('peserta')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'peserta' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
-            >
-              <Users className="h-4 w-4" />
-              <span>Kelola Peserta</span>
-            </button>
+                <button
+                  id="menu-tab-peserta"
+                  onClick={() => setActiveTab('peserta')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'peserta' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Kelola Peserta</span>
+                </button>
 
-            <button
-              id="menu-tab-scanner"
-              onClick={() => setActiveTab('scanner')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'scanner' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
-            >
-              <QrCode className="h-4 w-4" />
-              <span>E-Tiket & Scanner</span>
-            </button>
+                <button
+                  id="menu-tab-scanner"
+                  onClick={() => setActiveTab('scanner')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'scanner' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
+                >
+                  <QrCode className="h-4 w-4" />
+                  <span>E-Tiket & Scanner</span>
+                </button>
 
-            <button
-              id="menu-tab-saas"
-              onClick={() => setActiveTab('saas')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'saas' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
-            >
-              <Layers className="h-4 w-4" />
-              <span>Bisnis & SaaS Info</span>
-            </button>
+                <button
+                  id="menu-tab-saas"
+                  onClick={() => setActiveTab('saas')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'saas' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
+                >
+                  <Layers className="h-4 w-4" />
+                  <span>Bisnis & SaaS Info</span>
+                </button>
+              </>
+            )}
 
             {onViewPublicShowcase && (
               <button
@@ -660,34 +694,52 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
           <div>
             <span className="text-xs text-slate-400 font-mono block">SISTEM CLOUD / DASHBOARD AKUN</span>
             <h1 className="font-sans font-extrabold text-2xl text-slate-900">
-              {activeTab === 'ringkasan' && 'SmartEvent Planner Dashboard'}
-              {activeTab === 'events' && 'Kelola Pendaftaran Event'}
-              {activeTab === 'peserta' && 'Manajemen Database Peserta'}
-              {activeTab === 'scanner' && 'E-Tiket & Scanner Absensi'}
-              {activeTab === 'saas' && 'Status Bisnis & Informasi SWOT'}
+              {roleMode === 'peserta' ? (
+                'Portal Pendataan Kehadiran Mahasiswa'
+              ) : (
+                <>
+                  {activeTab === 'ringkasan' && 'SmartEvent Planner Dashboard'}
+                  {activeTab === 'events' && 'Kelola Pendaftaran Event'}
+                  {activeTab === 'peserta' && 'Manajemen Database Peserta'}
+                  {activeTab === 'scanner' && 'E-Tiket & Scanner Absensi'}
+                  {activeTab === 'saas' && 'Status Bisnis & Informasi SWOT'}
+                </>
+              )}
             </h1>
           </div>
           
           <div className="flex items-center space-x-2.5">
             {/* Realtime Local time widget representation */}
             <div className="hidden lg:block p-2 px-3 bg-white border border-slate-100 rounded-xl text-[10px] text-slate-500 font-mono">
-              Lokasi server: Singapore &bull; 2026-05-21
+              Role Aktif: {roleMode === 'peserta' ? 'Akses Mahasiswa/Peserta' : 'Akses Panitia/BEM'} &bull; 2026-05-22
             </div>
             
             {/* Quick Trigger Actions */}
-            <button
-              id="header-btn-new-event"
-              onClick={() => setShowAddEventModal(true)}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow-sm"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Buat Event Baru</span>
-            </button>
+            {roleMode === 'panitia' && (
+              <button
+                id="header-btn-new-event"
+                onClick={() => setShowAddEventModal(true)}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow-sm"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Buat Event Baru</span>
+              </button>
+            )}
           </div>
         </header>
 
-        {/* TAB 1: RINGKASAN & LAPORAN */}
-        {activeTab === 'ringkasan' && (
+        {roleMode === 'peserta' ? (
+          <StudentDashboard
+            user={user}
+            events={events}
+            participants={participants}
+            onSaveParticipants={saveParticipantsToStorage}
+            onViewEvents={onViewPublicShowcase || (() => {})}
+          />
+        ) : (
+          <>
+            {/* TAB 1: RINGKASAN & LAPORAN */}
+            {activeTab === 'ringkasan' && (
           <div className="space-y-6">
             
             {/* STATISTICS GRID COUNTERS */}
@@ -1584,6 +1636,8 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
 
           </div>
         )}
+      </>
+    )}
 
       </main>
 

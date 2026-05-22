@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Calendar, Mail, Lock, User, Building, ShieldCheck, ArrowLeft, Star, Heart } from 'lucide-react';
+import { Calendar, Mail, Lock, User, Building, ShieldCheck, ArrowLeft, Star, Heart, Eye, EyeOff, GraduationCap, Sparkles } from 'lucide-react';
 import { SaaSPlan, User as UserType } from '../types';
 
 interface AuthProps {
@@ -17,12 +17,22 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
   const [name, setName] = useState('');
   const [organization, setOrganization] = useState('');
   const [plan, setPlan] = useState<SaaSPlan>(selectedPlan);
+  const [selectedRole, setSelectedRole] = useState<'mahasiswa' | 'panitia'>('mahasiswa');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const handleAutofillDemo = () => {
+  const handleAutofillPanitia = () => {
     setEmail('demo@eventku.id');
     setPassword('password123');
+    setSelectedRole('panitia');
+    setError('');
+  };
+
+  const handleAutofillMahasiswa = () => {
+    setEmail('mhs@eventku.id');
+    setPassword('password123');
+    setSelectedRole('mahasiswa');
     setError('');
   };
 
@@ -32,7 +42,7 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
     setSuccessMsg('');
 
     if (!email || !password) {
-      setError('Email dan password harus diaktifkan/diisi.');
+      setError('Email dan password harus diisi.');
       return;
     }
 
@@ -41,20 +51,20 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
 
     if (mode === 'login') {
       // Login flow
-      // Simplistic authorization for demo
+      // 1. Organizers Demo
       if (email === 'demo@eventku.id' && password === 'password123') {
         const demoUser = savedUsers.find(u => u.email === email);
         if (demoUser) {
-          onAuthSuccess(demoUser);
+          onAuthSuccess({ ...demoUser, role: 'panitia' });
         } else {
-          // If demo deleted, reconstruct
           const defaultUser: UserType = {
             id: 'user_demo',
             name: 'Budi Santoso',
             email: 'demo@eventku.id',
-            organization: 'PT Sinergi Kreatif Nusantara',
-            plan: 'pro', // Give full analytic experience for demo
-            registeredAt: new Date().toISOString()
+            organization: 'Badan Eksekutif Mahasiswa (BEM) Universitas',
+            plan: 'pro',
+            registeredAt: new Date().toISOString(),
+            role: 'panitia'
           };
           savedUsers.push(defaultUser);
           localStorage.setItem('ep_users', JSON.stringify(savedUsers));
@@ -63,18 +73,43 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
         return;
       }
 
-      // Check registered email / password (dummy validation: password accepts whatever exists or matching registered user)
+      // 2. Students Demo
+      if (email === 'mhs@eventku.id' && password === 'password123') {
+        const mhsUser = savedUsers.find(u => u.email === email);
+        if (mhsUser) {
+          onAuthSuccess({ ...mhsUser, role: 'mahasiswa' });
+        } else {
+          const defaultMhs: UserType = {
+            id: 'user_mhs_demo',
+            name: 'Andi Wijaya (Mahasiswa)',
+            email: 'mhs@eventku.id',
+            organization: 'Fakultas Ilmu Komputer UI',
+            plan: 'free',
+            registeredAt: new Date().toISOString(),
+            role: 'mahasiswa'
+          };
+          savedUsers.push(defaultMhs);
+          localStorage.setItem('ep_users', JSON.stringify(savedUsers));
+          onAuthSuccess(defaultMhs);
+        }
+        return;
+      }
+
+      // 3. Regular users
       const matchedUser = savedUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
       if (matchedUser) {
-        // Simple password check (accept password123 or whatever they registered with)
         onAuthSuccess(matchedUser);
       } else {
         setError('Kombinasi email dan password kurang tepat atau belum terdaftar.');
       }
     } else {
       // Sign Up flow
-      if (!name || !organization) {
-        setError('Silakan lengkapi nama lengkap dan nama instansi Anda.');
+      if (!name) {
+        setError('Silakan lengkapi nama lengkap Anda.');
+        return;
+      }
+      if (selectedRole === 'panitia' && !organization) {
+        setError('Silakan lengkapi nama organisasi atau instansi kepanitiaan Anda.');
         return;
       }
 
@@ -88,15 +123,16 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
         id: `user_${Date.now()}`,
         name,
         email,
-        organization,
-        plan,
-        registeredAt: new Date().toISOString()
+        organization: selectedRole === 'mahasiswa' ? (organization || 'Universitas Indonesia') : organization,
+        plan: selectedRole === 'mahasiswa' ? 'free' : plan,
+        registeredAt: new Date().toISOString(),
+        role: selectedRole
       };
 
       savedUsers.push(newUser);
       localStorage.setItem('ep_users', JSON.stringify(savedUsers));
       
-      setSuccessMsg('Pendaftaran akun berhasil! Mengalihkan ke dashboard...');
+      setSuccessMsg(`Pendaftaran akun ${selectedRole === 'mahasiswa' ? 'Mahasiswa' : 'Panitia'} berhasil! Mengalihkan ke dashboard...`);
       setTimeout(() => {
         onAuthSuccess(newUser);
       }, 1500);
@@ -155,7 +191,7 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md animate-fade-in">
         <div className="glass py-8 px-6 shadow-2xl rounded-3xl sm:px-10">
           
           {error && (
@@ -173,9 +209,59 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
               <>
+                {/* Role Selector Card */}
+                <div className="mb-5">
+                  <label className="block text-xs font-bold text-pink-200 uppercase tracking-widest mb-2 font-mono">Pilih Peran Utama</label>
+                  <div className="grid grid-cols-2 gap-3" id="role-selector-signup">
+                    <button
+                      id="signup-role-mahasiswa"
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole('mahasiswa');
+                      }}
+                      className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
+                        selectedRole === 'mahasiswa'
+                          ? 'border-pink-500 bg-pink-500/10 text-white shadow-lg ring-1 ring-pink-500/20'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <GraduationCap className={`h-5 w-5 ${selectedRole === 'mahasiswa' ? 'text-pink-400' : 'text-slate-400'}`} />
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                          selectedRole === 'mahasiswa' ? 'bg-pink-500/25 text-pink-300 font-extrabold' : 'bg-white/10 text-slate-300'
+                        }`}>PESERTA</span>
+                      </div>
+                      <span className="text-xs font-extrabold block">Mahasiswa</span>
+                      <span className="text-[9px] opacity-75 mt-1 leading-relaxed block">Peserta event & download sertifikat</span>
+                    </button>
+
+                    <button
+                      id="signup-role-panitia"
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole('panitia');
+                      }}
+                      className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
+                        selectedRole === 'panitia'
+                          ? 'border-purple-500 bg-purple-500/10 text-white shadow-lg ring-1 ring-purple-500/20'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <ShieldCheck className={`h-5 w-5 ${selectedRole === 'panitia' ? 'text-purple-400' : 'text-slate-400'}`} />
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                          selectedRole === 'panitia' ? 'bg-purple-500/25 text-purple-300 font-extrabold' : 'bg-white/10 text-slate-300'
+                        }`}>PANITIA BEM</span>
+                      </div>
+                      <span className="text-xs font-extrabold block">Panitia BEM</span>
+                      <span className="text-[9px] opacity-75 mt-1 leading-relaxed block">Manajemen, buat absensi & analisis scan</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Full Name */}
                 <div>
-                  <label htmlFor="auth-name" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5">Nama Lengkap</label>
+                  <label htmlFor="auth-name" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Nama Lengkap</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
                       <User className="h-4 w-4" />
@@ -185,8 +271,8 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Contoh: Budi Santoso"
-                      className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm"
+                      placeholder={selectedRole === 'mahasiswa' ? 'Contoh: Andi Wijaya' : 'Contoh: Bagas Pratama'}
+                      className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
                       required
                     />
                   </div>
@@ -194,65 +280,69 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
 
                 {/* Organization */}
                 <div>
-                  <label htmlFor="auth-org" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5">Nama Instansi / Komunitas</label>
+                  <label htmlFor="auth-org" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">
+                    {selectedRole === 'mahasiswa' ? 'Asal Universitas & Jurusan' : 'Nama Instansi / Komunitas BEM'}
+                  </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
-                      <Building className="h-4 w-4" />
+                      {selectedRole === 'mahasiswa' ? <GraduationCap className="h-4 w-4" /> : <Building className="h-4 w-4" />}
                     </div>
                     <input
                       id="auth-org"
                       type="text"
                       value={organization}
                       onChange={(e) => setOrganization(e.target.value)}
-                      placeholder="Contoh: Universitas Indonesia / Komunitas IT"
-                      className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm"
+                      placeholder={selectedRole === 'mahasiswa' ? 'Contoh: Universitas Indonesia / Sistem Informasi' : 'Contoh: BEM Fakultas Ilmu Komputer UI'}
+                      className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
                       required
                     />
                   </div>
                 </div>
 
-                {/* SaaS Subscription Plan Selector */}
-                <div>
-                  <label className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5">Pilih Tingkat Paket SaaS</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      id="opt-plan-free"
-                      type="button"
-                      onClick={() => setPlan('free')}
-                      className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'free' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
-                    >
-                      <span className="text-[10px] font-bold block">Free Plan</span>
-                      <span className="text-xs font-black">Gratis</span>
-                      <span className="text-[8px] opacity-60 block truncate">1 event/bln</span>
-                    </button>
-                    <button
-                      id="opt-plan-basic"
-                      type="button"
-                      onClick={() => setPlan('basic')}
-                      className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'basic' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
-                    >
-                      <span className="text-[10px] font-bold block">Basic Plan</span>
-                      <span className="text-xs font-black text-pink-300">Rp49rb</span>
-                      <span className="text-[8px] opacity-60 block truncate">Unlimited event</span>
-                    </button>
-                    <button
-                      id="opt-plan-pro"
-                      type="button"
-                      onClick={() => setPlan('pro')}
-                      className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'pro' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
-                    >
-                      <span className="text-[10px] font-bold block">Pro Plan</span>
-                      <span className="text-xs font-black text-pink-200">Rp99rb</span>
-                      <span className="text-[8px] opacity-60 block truncate">+ Analytics</span>
-                    </button>
+                {/* SaaS Subscription Plan Selector (Panitia Only) */}
+                {selectedRole === 'panitia' && (
+                  <div>
+                    <label className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Pilih Tingkat Paket SaaS</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        id="opt-plan-free"
+                        type="button"
+                        onClick={() => setPlan('free')}
+                        className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'free' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
+                      >
+                        <span className="text-[10px] font-bold block">Free Plan</span>
+                        <span className="text-xs font-black">Gratis</span>
+                        <span className="text-[8px] opacity-60 block truncate">1 event/bln</span>
+                      </button>
+                      <button
+                        id="opt-plan-basic"
+                        type="button"
+                        onClick={() => setPlan('basic')}
+                        className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'basic' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
+                      >
+                        <span className="text-[10px] font-bold block">Basic Plan</span>
+                        <span className="text-xs font-black text-pink-300">Rp49rb</span>
+                        <span className="text-[8px] opacity-60 block truncate">Unlimited event</span>
+                      </button>
+                      <button
+                        id="opt-plan-pro"
+                        type="button"
+                        onClick={() => setPlan('pro')}
+                        className={`p-2 rounded-xl text-center border transition flex flex-col justify-between h-20 ${plan === 'pro' ? 'border-pink-500 bg-white/15 text-white ring-1 ring-pink-500/30 shadow-lg' : 'border-white/10 bg-white/5 hover:bg-white/10 text-white/70'}`}
+                      >
+                        <span className="text-[10px] font-bold block">Pro Plan</span>
+                        <span className="text-xs font-black text-pink-200">Rp99rb</span>
+                        <span className="text-[8px] opacity-60 block truncate">+ Analytics</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
 
             {/* Email */}
             <div>
-              <label htmlFor="auth-email" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5">Alamat Email</label>
+              <label htmlFor="auth-email" className="block text-xs font-bold text-pink-200 uppercase tracking-wider mb-1.5 font-mono">Alamat Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/50">
                   <Mail className="h-4 w-4" />
@@ -263,7 +353,7 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Contoh: nama@domain.com"
-                  className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm"
+                  className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
                   required
                 />
               </div>
@@ -272,7 +362,7 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
             {/* Password */}
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <label htmlFor="auth-password" className="block text-xs font-bold text-pink-200 uppercase tracking-wider">Kata Sandi</label>
+                <label htmlFor="auth-password" className="block text-xs font-bold text-pink-200 uppercase tracking-wider font-mono">Kata Sandi</label>
                 {mode === 'login' && (
                   <span className="text-[10px] font-bold text-pink-300 hover:text-white hover:underline cursor-pointer">Lupa Sandi?</span>
                 )}
@@ -283,13 +373,21 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
                 </div>
                 <input
                   id="auth-password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Masukkan minimal 6 karakter"
-                  className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm"
+                  className="block w-full pl-10 pr-10 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
                   required
                 />
+                <button
+                  id="btn-toggle-password"
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-white/50 hover:text-white transition cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
@@ -305,18 +403,29 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
           {/* Quick Demo Autofill section */}
           {mode === 'login' && (
             <div className="mt-6 pt-5 border-t border-white/10 text-center">
-              <span className="text-[10px] uppercase font-bold text-white/50 block tracking-wider mb-2">Evaluasi Instan Tanpa Registrasi</span>
-              <button
-                id="btn-autofill-demo"
-                type="button"
-                onClick={handleAutofillDemo}
-                className="w-full py-2.5 border border-dashed border-pink-500/30 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 font-sans text-xs font-bold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer"
-              >
-                <Star className="h-3.5 w-3.5 fill-pink-300" />
-                <span>Autofill Akun Demo (Demo Owner)</span>
-              </button>
-              <div className="mt-1.5 text-[10px] text-white/40 font-mono">
-                demo@eventku.id &bull; password123
+              <span className="text-[10px] uppercase font-bold text-white/50 block tracking-wider mb-2.5 font-mono">Evaluasi Instan Tanpa Registrasi</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  id="btn-autofill-panitia"
+                  type="button"
+                  onClick={handleAutofillPanitia}
+                  className="py-2.5 px-1.5 border border-dashed border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-sans text-[10px] font-bold rounded-xl transition flex items-center justify-center space-x-1 cursor-pointer"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-purple-400 flex-shrink-0" />
+                  <span>Demo BEM (Panitia)</span>
+                </button>
+                <button
+                  id="btn-autofill-mahasiswa"
+                  type="button"
+                  onClick={handleAutofillMahasiswa}
+                  className="py-2.5 px-1.5 border border-dashed border-pink-500/40 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 font-sans text-[10px] font-bold rounded-xl transition flex items-center justify-center space-x-1 cursor-pointer"
+                >
+                  <GraduationCap className="h-3.5 w-3.5 text-pink-400 flex-shrink-0" />
+                  <span>Demo Mahasiswa</span>
+                </button>
+              </div>
+              <div className="mt-2 text-[10px] text-white/40 font-mono">
+                Sandi demo: <span className="text-white/60 font-semibold">password123</span>
               </div>
             </div>
           )}

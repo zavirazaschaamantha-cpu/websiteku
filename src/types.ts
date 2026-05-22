@@ -7,6 +7,7 @@ export interface User {
   organization: string;
   plan: SaaSPlan;
   registeredAt: string;
+  role: 'mahasiswa' | 'panitia';
 }
 
 export interface Event {

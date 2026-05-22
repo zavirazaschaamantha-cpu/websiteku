@@ -6,7 +6,8 @@ export const DEFAULT_USER: User = {
   email: 'demo@eventku.id',
   organization: 'Badan Eksekutif Mahasiswa (BEM) Universitas',
   plan: 'pro', // Default plan is pro for demo ease
-  registeredAt: '2026-01-15T08:00:00Z'
+  registeredAt: '2026-01-15T08:00:00Z',
+  role: 'panitia'
 };
 
 export const INITIAL_EVENTS: Event[] = [

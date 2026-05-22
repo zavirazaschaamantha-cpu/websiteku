@@ -53,7 +53,8 @@ export default function App() {
         email: 'demo@eventku.id',
         organization: 'Badan Eksekutif Mahasiswa (BEM) Universitas',
         plan: 'pro', // demo users get full visual features
-        registeredAt: new Date().toISOString()
+        registeredAt: new Date().toISOString(),
+        role: 'panitia'
       };
       savedUsers.push(demoUser);
       localStorage.setItem('ep_users', JSON.stringify(savedUsers));
