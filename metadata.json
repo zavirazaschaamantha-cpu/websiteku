@@ -1,6 +1,6 @@
 {
   "name": "Event Planner Ku",
   "description": "EventPlannerKu Edisi Kampus - Aplikasi manajemen acara digital berbasis cloud khusus BEM, Himpunan, & UKM Mahasiswa untuk e-registrasi, tiket QR Code instan, absensi scanner gratis, dan visual memikat.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

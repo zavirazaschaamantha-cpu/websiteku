@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
 import { 
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
   Tooltip, Legend, CartesianGrid, LineChart, Line, Cell
@@ -60,6 +61,11 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
     participant?: Participant;
     event?: Event;
   } | null>(null);
+
+  // Real device camera states for actual QR scanner
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -416,6 +422,82 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
       event: matchedEvent
     });
   };
+
+  const stopRealScanning = async () => {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      try {
+        await html5QrCodeRef.current.stop();
+      } catch (err) {
+        console.error("Gagal menghentikan kamera", err);
+      }
+    }
+    setIsCameraActive(false);
+  };
+
+  const startRealScanning = async () => {
+    setCameraError(null);
+    try {
+      // Create a element region if not exists and initialize
+      if (!html5QrCodeRef.current) {
+        html5QrCodeRef.current = new Html5Qrcode("html5qr-code-full-region");
+      }
+      
+      if (html5QrCodeRef.current.isScanning) {
+        return;
+      }
+
+      await html5QrCodeRef.current.start(
+        { facingMode: "environment" },
+        {
+          fps: 15,
+          qrbox: (width, height) => {
+            const minSize = Math.min(width, height);
+            const boxSize = Math.floor(minSize * 0.7);
+            return { width: boxSize, height: boxSize };
+          }
+        },
+        (decodedText) => {
+          // Play success beep
+          try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(900, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.12);
+          } catch (audioErr) {
+            console.warn("Audio beeper error", audioErr);
+          }
+          // Process attendance scan
+          handlePerformScan(decodedText);
+        },
+        () => {
+          // Ignore verbose scanner logs
+        }
+      );
+      setIsCameraActive(true);
+    } catch (err: any) {
+      console.error("Gagal menaruh feed kamera", err);
+      setCameraError(err?.message || "Hak akses kamera tidak diizinkan atau perangkat kamera tidak ditemukan.");
+      setIsCameraActive(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'scanner' || attendanceMethod !== 'scan') {
+      stopRealScanning();
+    }
+    return () => {
+      // Graceful scanner shutdown on tab changes / unmount
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        html5QrCodeRef.current.stop().catch(console.error);
+      }
+    };
+  }, [activeTab, attendanceMethod]);
 
   // Filtered Participants List based on selected event + search queries
   const filteredParticipants = participants.filter(p => {
@@ -1402,37 +1484,65 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
 
               {attendanceMethod === 'scan' ? (
                 <div className="space-y-4 animate-fade-in" id="attendance-section-scan">
-                  {/* MOCK SCANNER VIEWPORT */}
-                  <div className="border-4 border-slate-200 rounded-3xl overflow-hidden bg-slate-950 relative aspect-[1.3] shadow-inner flex flex-col items-center justify-between p-6">
+                  {/* REAL CAMERA SCANNER VIEWPORT */}
+                  <div className="border-4 border-slate-200 rounded-3xl overflow-hidden bg-slate-950 relative aspect-[1.3] shadow-inner flex flex-col items-center justify-between p-4 min-h-[300px]">
                     
-                    {/* Simulated Laser scan beam line */}
-                    <div className="absolute top-1/2 left-10 right-10 h-0.5 bg-pink-500 shadow-md shadow-pink-500 animate-pulse -translate-y-1/2 z-10"></div>
-                    
-                    {/* Hologram decoration dots grid */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-500/5 to-transparent flex items-center justify-center opacity-85">
-                      <div className="w-52 h-52 border border-purple-500/40 border-dashed rounded-2xl flex items-center justify-center">
-                        <QrCode className="h-24 w-24 text-purple-400/30 animate-pulse" />
-                      </div>
+                    {/* Real HTML5 Camera Player Region */}
+                    <div className="absolute inset-0 w-full h-full z-0 overflow-hidden bg-black flex items-center justify-center">
+                      <div id="html5qr-code-full-region" className="w-full h-full object-cover"></div>
                     </div>
 
-                    {/* Simulated scan green popup state */}
+                    {/* Camera Offline Overlay / Start button */}
+                    {!isCameraActive && (
+                      <div className="absolute inset-0 bg-slate-900/90 z-10 flex flex-col items-center justify-center p-6 text-center space-y-4">
+                        <div className="w-16 h-16 bg-purple-500/10 border border-purple-500/20 rounded-full flex items-center justify-center animate-pulse">
+                          <QrCode className="h-8 w-8 text-pink-400" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-white">Kamera Belum Aktif</p>
+                          <p className="text-[10px] text-slate-400 max-w-xs leading-relaxed">
+                            Izinkan akses browser untuk memindai kode QR fisik (tiket/boarding pass) langsung dari kamera laptop/hp Anda.
+                          </p>
+                        </div>
+                        {cameraError && (
+                          <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[9px] p-2 py-1.5 rounded-lg max-w-xs leading-normal font-mono">
+                            {cameraError}
+                          </div>
+                        )}
+                        <button
+                          id="btn-trigger-camera"
+                          type="button"
+                          onClick={startRealScanning}
+                          className="px-6 py-2 bg-gradient-to-tr from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-900/40 transform hover:scale-105 transition cursor-pointer"
+                        >
+                          Aktifkan Kamera Sekarang
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Laser Scanner animation effect when camera is active */}
+                    {isCameraActive && !scanResult && (
+                      <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-pink-500 shadow-md shadow-pink-500 animate-pulse -translate-y-1/2 z-10 pointer-events-none"></div>
+                    )}
+
+                    {/* Simulated scan green/red popup state */}
                     {scanResult && (
-                      <div className={`absolute inset-0 flex items-center justify-center p-6 bg-slate-950/90 text-center z-20 ${scanResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        <div className="space-y-4 max-w-sm">
+                      <div className={`absolute inset-0 flex items-center justify-center p-6 bg-slate-950/95 text-center z-20 ${scanResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <div className="space-y-3.5 max-w-sm">
                           <div className="mx-auto w-12 h-12 rounded-full border border-current flex items-center justify-center mb-1">
                             {scanResult.success ? <CheckCircle className="h-6 w-6 stroke-[3]" /> : <XCircle className="h-6 w-6 stroke-[3]" />}
                           </div>
-                          <h4 className="font-sans font-bold text-base uppercase tracking-wider">{scanResult.success ? 'SCAN SUKSES' : 'SCAN GAGAL'}</h4>
+                          <h4 className="font-sans font-bold text-sm uppercase tracking-wider">{scanResult.success ? 'ABSENSI BERHASIL' : 'SCAN GAGAL'}</h4>
                           <p className="text-xs text-slate-300 leading-relaxed font-semibold">{scanResult.message}</p>
                           
                           {scanResult.participant && (
                             <div className="bg-slate-900 border border-slate-800 p-3 rounded-2xl flex items-center space-x-3 text-left">
-                              <div className="p-2 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-xl text-white font-sans text-xs font-black">
-                                {scanResult.participant.name.substring(0,2)}
+                              <div className="p-2 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-xl text-white font-sans text-xs font-black min-w-[28px] text-center shrink-0">
+                                {scanResult.participant.name.substring(0,2).toUpperCase()}
                               </div>
-                              <div>
-                                <p className="text-xs font-bold text-white">{scanResult.participant.name}</p>
-                                <p className="text-[9px] text-slate-400 font-mono">{scanResult.participant.ticketCode} &bull; {scanResult.participant.email}</p>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-white truncate">{scanResult.participant.name}</p>
+                                <p className="text-[9px] text-slate-400 font-mono truncate">{scanResult.participant.ticketCode} &bull; {scanResult.participant.email}</p>
                                 {scanResult.event && (
                                   <p className="text-[9px] text-purple-300 truncate font-semibold mt-0.5">{scanResult.event.title}</p>
                                 )}
@@ -1442,8 +1552,9 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
 
                           <button
                             id="btn-scan-again-camera"
+                            type="button"
                             onClick={() => setScanResult(null)}
-                            className="p-1 px-4 text-xs font-bold text-slate-300 hover:text-white border border-slate-700 bg-slate-900 hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                            className="p-1.5 px-5 text-xs font-bold text-slate-300 hover:text-white border border-slate-700 bg-slate-900 hover:bg-slate-800 rounded-xl transition cursor-pointer"
                           >
                             Pindai Berikutnya
                           </button>
@@ -1451,18 +1562,30 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                       </div>
                     )}
 
-                    {/* Mock Camera details header */}
-                    <div className="w-full relative flex items-center justify-between z-10">
-                      <div className="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1 rounded-full text-[9px] text-slate-400 font-bold border border-slate-800">
-                        <span className="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
-                        <span>LIVE CAMERA EMULATOR</span>
+                    {/* Camera Control HUD Overlay top & bottom */}
+                    <div className="w-full relative flex items-center justify-between z-10 pointer-events-none">
+                      <div className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold border ${isCameraActive ? 'bg-emerald-950/90 text-emerald-400 border-emerald-800' : 'bg-slate-900/80 text-slate-400 border-slate-800'}`}>
+                        <span className={`w-2 h-2 rounded-full ${isCameraActive ? 'bg-emerald-500 animate-ping' : 'bg-slate-500'}`}></span>
+                        <span>{isCameraActive ? 'KAMERA AKTIF' : 'KAMERA MATI'}</span>
                       </div>
-                      <span className="text-[9px] font-mono text-slate-500">READY</span>
+                      
+                      {isCameraActive && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            stopRealScanning();
+                          }}
+                          className="pointer-events-auto px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[9px] font-bold rounded-lg transition"
+                        >
+                          Matikan Kamera
+                        </button>
+                      )}
                     </div>
 
-                    <div className="relative text-center max-w-xs space-y-1 z-10">
-                      <span className="text-[10px] text-slate-300 block tracking-wider uppercase font-extrabold text-center mx-auto">Kamera Bidikan Aktif</span>
-                      <p className="text-[9px] text-slate-400">Gunakan simulator klik cepat peserta di bawah untuk memicu pemindaian QR code.</p>
+                    <div className="relative text-center max-w-xs space-y-1 z-10 pointer-events-none pb-2 bg-slate-950/60 p-2 rounded-xl backdrop-blur-[2px]">
+                      <span className="text-[10px] text-slate-300 block tracking-wider uppercase font-extrabold text-center mx-auto">Arahkan Tiket QR</span>
+                      <p className="text-[8px] text-slate-400">Posisikan Kode QR atau hologram tiket tepat di tengah lensa kamera.</p>
                     </div>
 
                   </div>
