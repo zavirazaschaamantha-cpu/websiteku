@@ -128,6 +128,29 @@ export default function App() {
     handleLoginSuccess(demoUser);
   };
 
+  const handleStartStudentDemo = () => {
+    // Demo login for student automatically logs in with Student Demo values
+    const savedUsersStr = localStorage.getItem('ep_users') || '[]';
+    let savedUsers: User[] = JSON.parse(savedUsersStr);
+    
+    let demoStudent = savedUsers.find(u => u.email === 'mhs@eventku.id');
+    if (!demoStudent) {
+      demoStudent = {
+        id: 'user_mhs_demo',
+        name: 'Andi Wijaya (Mahasiswa)',
+        email: 'mhs@eventku.id',
+        organization: 'Fakultas Ilmu Komputer UI',
+        plan: 'free',
+        registeredAt: new Date().toISOString(),
+        role: 'mahasiswa'
+      };
+      savedUsers.push(demoStudent);
+      localStorage.setItem('ep_users', JSON.stringify(savedUsers));
+    }
+    
+    handleLoginSuccess(demoStudent);
+  };
+
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
     localStorage.setItem('ep_active_session', JSON.stringify(user));
@@ -299,6 +322,7 @@ export default function App() {
     <LandingPage 
       currentUser={currentUser}
       onStartDemo={handleStartDemo}
+      onStartStudentDemo={handleStartStudentDemo}
       onViewEvents={() => setCurrentView('events-public')}
       onNavigateToAuth={(mode, plan = 'basic') => {
         setAuthState({ mode, selectedPlan: plan });

@@ -557,16 +557,44 @@ export default function EventPlanner() {
 
               {/* Duration (Hours) */}
               <div className="space-y-1 col-span-2">
-                <label htmlFor="planner-duration" className="block text-[10px] font-bold text-slate-500 uppercase">Durasi Acara ({eventDuration} Jam)</label>
-                <input
-                  id="planner-duration"
-                  type="range"
-                  min="1"
-                  max="12"
-                  value={eventDuration}
-                  onChange={(e) => setEventDuration(Number(e.target.value))}
-                  className="w-full accent-purple-600 mt-2 cursor-pointer h-1.5 bg-slate-200 rounded-lg appearance-none"
-                />
+                <div className="flex justify-between items-center">
+                  <label htmlFor="planner-duration" className="block text-[10px] font-bold text-slate-500 uppercase">
+                    Durasi Acara
+                  </label>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full transition-all duration-300 ${
+                    eventDuration <= 3 
+                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/50' 
+                      : eventDuration <= 6 
+                      ? 'bg-purple-50 text-purple-600 border border-purple-200/50' 
+                      : 'bg-rose-50 text-rose-600 border border-rose-200/50'
+                  }`}>
+                    {eventDuration} Jam {eventDuration <= 3 ? '(Singkat)' : eventDuration <= 6 ? '(Sedang)' : '(Panjang)'}
+                  </span>
+                </div>
+                <div className="relative pt-1">
+                  <input
+                    id="planner-duration"
+                    type="range"
+                    min="1"
+                    max="12"
+                    value={eventDuration}
+                    onChange={(e) => setEventDuration(Number(e.target.value))}
+                    className="w-full accent-purple-600 cursor-pointer h-2 rounded-lg appearance-none transition-all duration-300"
+                    style={{
+                      background: `linear-gradient(to right, #8b5cf6 0%, #ec4899 ${
+                        ((eventDuration - 1) / 11) * 100
+                      }%, #e2e8f0 ${
+                        ((eventDuration - 1) / 11) * 100
+                      }%, #e2e8f0 100%)`
+                    }}
+                  />
+                  <div className="flex justify-between text-[9px] text-slate-400 font-bold px-0.5 mt-1 font-mono">
+                    <span>1 Jam</span>
+                    <span>4 Jam</span>
+                    <span>8 Jam</span>
+                    <span>12 Jam</span>
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -10,12 +10,13 @@ import { SaaSPlan, User } from '../types';
 interface LandingPageProps {
   currentUser?: User | null;
   onStartDemo: () => void;
+  onStartStudentDemo: () => void;
   onViewEvents: () => void;
   onNavigateToAuth: (mode: 'login' | 'signup', plan?: SaaSPlan) => void;
   onGoToDashboard: () => void;
 }
 
-export default function LandingPage({ currentUser, onStartDemo, onViewEvents, onNavigateToAuth, onGoToDashboard }: LandingPageProps) {
+export default function LandingPage({ currentUser, onStartDemo, onStartStudentDemo, onViewEvents, onNavigateToAuth, onGoToDashboard }: LandingPageProps) {
   return (
     <div className="min-h-screen gradient-bg text-white selection:bg-pink-500 selection:text-white relative overflow-hidden">
       {/* Dynamic light glows */}
@@ -112,7 +113,7 @@ export default function LandingPage({ currentUser, onStartDemo, onViewEvents, on
                 Solusi digital terlengkap bagi BEM, Himpunan, and UKM Universitas. Atur pendaftaran seminar beasiswa online, bagikan e-tiket QR Code resmi secara gratis, dan kelola kehadiran absensi ratusan mahasiswa secepat kilat.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 pt-2">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-4 pt-2">
                 <button
                   id="hero-btn-view-events"
                   onClick={onViewEvents}
@@ -128,6 +129,14 @@ export default function LandingPage({ currentUser, onStartDemo, onViewEvents, on
                 >
                   <span>Demo Akses Panitia (BEM)</span>
                   <Zap className="h-4.5 w-4.5 text-pink-400" />
+                </button>
+                <button
+                  id="hero-btn-demo-mhs"
+                  onClick={onStartStudentDemo}
+                  className="px-6 py-4 bg-pink-500/10 border border-pink-500/20 text-pink-300 font-sans font-bold rounded-2xl hover:bg-pink-500/20 transition flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <span>Demo Akses Mahasiswa</span>
+                  <GraduationCap className="h-4.5 w-4.5 text-pink-400" />
                 </button>
               </div>
 
@@ -396,17 +405,27 @@ export default function LandingPage({ currentUser, onStartDemo, onViewEvents, on
                 <span className="text-[10px] font-bold uppercase tracking-wider bg-white/20 px-2.5 py-1 rounded-full border border-white/10">Sistem SaaS Cloud</span>
                 <h3 className="font-sans text-lg font-bold mt-4 mb-2">Butuh Uji Coba Langsung?</h3>
                 <p className="text-xs text-white/95 leading-relaxed">
-                  Kami menyediakan data awal demo (Seminar, Workshop, dan Pelatihan) siap pakai agar Anda dapat menguji seluruh alur kerja sistem.
+                  Kami menyediakan data awal akun demo siap pakai agar Anda dapat menguji semua alur kerja sebagai BEM/Panitia atau sebagai Mahasiswa/Peserta.
                 </p>
               </div>
-              <button 
-                id="btn-trial-now"
-                onClick={onStartDemo}
-                className="w-full mt-5 py-3 bg-white text-purple-900 font-sans text-xs font-bold rounded-xl hover:bg-white/90 transition flex items-center justify-center space-x-1.5 shadow-md"
-              >
-                <span>Buka Demo Sekarang</span>
-                <ArrowRight className="h-4 w-4" />
-              </button>
+              <div className="mt-5 space-y-2">
+                <button 
+                  id="btn-trial-now-panitia"
+                  onClick={onStartDemo}
+                  className="w-full py-2 bg-white text-purple-900 font-sans text-xs font-extrabold rounded-xl hover:bg-white/90 transition flex items-center justify-center space-x-1.5 shadow-md cursor-pointer"
+                >
+                  <span>Coba Demo Panitia (BEM)</span>
+                  <Zap className="h-3.5 w-3.5 text-purple-600" />
+                </button>
+                <button 
+                  id="btn-trial-now-mahasiswa"
+                  onClick={onStartStudentDemo}
+                  className="w-full py-2 bg-purple-950/40 border border-white/20 text-white font-sans text-xs font-bold rounded-xl hover:bg-purple-950/60 transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                >
+                  <span>Coba Demo Mahasiswa</span>
+                  <GraduationCap className="h-3.5 w-3.5 text-pink-300" />
+                </button>
+              </div>
             </div>
 
           </div>
