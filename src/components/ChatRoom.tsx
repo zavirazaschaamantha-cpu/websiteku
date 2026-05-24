@@ -36,14 +36,21 @@ export default function ChatRoom({ user, events, participants, defaultEventId }:
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [activeMobileView, setActiveMobileView] = useState<'rooms' | 'chat' | 'info'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Sync selected room if prop updates
   useEffect(() => {
     if (defaultEventId) {
       setSelectedEventId(defaultEventId);
+      setActiveMobileView('chat');
     }
   }, [defaultEventId]);
+
+  // Sync mobile view on event channel switch
+  useEffect(() => {
+    setActiveMobileView('chat');
+  }, [selectedEventId]);
 
   // Derive active event details
   const activeEvent = events.find(e => e.id === selectedEventId);
@@ -298,10 +305,47 @@ export default function ChatRoom({ user, events, participants, defaultEventId }:
         </div>
       </div>
 
+      {/* Mobile view sub-navigation header (visible only on mobile) */}
+      <div className="lg:hidden flex border-b border-slate-200 bg-white rounded-t-2xl shadow-xs mb-1.5 p-1 gap-1">
+        <button
+          type="button"
+          onClick={() => { setActiveMobileView('rooms'); playClickSound(); }}
+          className={`flex-1 py-1.5 text-center text-[10px] font-black rounded-lg transition-all ${
+            activeMobileView === 'rooms' 
+              ? 'bg-slate-950 text-white shadow-xs' 
+              : 'text-slate-500 hover:bg-slate-105'
+          }`}
+        >
+          📂 Saluran ({events.length + 1})
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveMobileView('chat'); playClickSound(); }}
+          className={`flex-1 py-1.5 text-center text-[10px] font-black rounded-lg transition-all flex items-center justify-center gap-1 ${
+            activeMobileView === 'chat' 
+              ? 'bg-slate-950 text-white shadow-xs' 
+              : 'text-slate-500 hover:bg-slate-105'
+          }`}
+        >
+          💬 Chat Live ({messages.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveMobileView('info'); playClickSound(); }}
+          className={`flex-1 py-1.5 text-center text-[10px] font-black rounded-lg transition-all ${
+            activeMobileView === 'info' 
+              ? 'bg-slate-950 text-white shadow-xs' 
+              : 'text-slate-500 hover:bg-slate-105'
+          }`}
+        >
+          ℹ️ Detail & Kontak
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 bg-white rounded-2xl border border-slate-100 overflow-hidden h-[calc(100vh-270px)] min-h-[500px]">
         
         {/* PANEL 1: Room Selectors (Left Panel - 3 Cols) */}
-        <div className="lg:col-span-3 border-r border-slate-100 flex flex-col bg-slate-50/50">
+        <div className={`lg:col-span-3 border-r border-slate-100 flex flex-col bg-slate-50/50 ${activeMobileView === 'rooms' ? 'flex' : 'hidden lg:flex'}`}>
           <div className="p-4 border-b border-slate-100 bg-white space-y-2">
             <h3 className="font-extrabold text-xs text-slate-900 flex items-center gap-1.5">
               <Hash className="h-4 w-4 text-pink-500 shrink-0" />
@@ -379,7 +423,7 @@ export default function ChatRoom({ user, events, participants, defaultEventId }:
         </div>
 
         {/* PANEL 2: Live Chat Arena (Center Panel - 6 Cols) */}
-        <div className="lg:col-span-6 flex flex-col bg-white border-r border-slate-100">
+        <div className={`lg:col-span-6 flex flex-col bg-white border-r border-slate-100 ${activeMobileView === 'chat' ? 'flex' : 'hidden lg:flex'}`}>
           
           {/* Chat Window Header */}
           <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/20">
@@ -491,7 +535,7 @@ export default function ChatRoom({ user, events, participants, defaultEventId }:
         </div>
 
         {/* PANEL 3: Event info & Participant List (Right Panel - 3 Cols) */}
-        <div className="lg:col-span-3 flex flex-col bg-slate-50/20">
+        <div className={`lg:col-span-3 flex flex-col bg-slate-50/20 ${activeMobileView === 'info' ? 'flex' : 'hidden lg:flex'}`}>
           
           {/* Header */}
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 text-left">

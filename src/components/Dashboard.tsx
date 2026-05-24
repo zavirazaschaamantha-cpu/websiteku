@@ -1000,7 +1000,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-semibold transition ${activeTab === 'chat' ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
                 >
                   <MessageSquare className="h-4 w-4" />
-                  <span>Kanal Chat Luar</span>
+                  <span>Kanal Chat Live (Realtime)</span>
                 </button>
 
                 <button
