@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Event, Participant, User } from '../types';
 import ChatRoom from './ChatRoom';
+import { playClickSound } from '../utils/audio';
 
 interface StudentDashboardProps {
   user: User;
@@ -25,7 +26,12 @@ export default function StudentDashboard({
   onViewEvents 
 }: StudentDashboardProps) {
   
-  const [activeTab, setActiveTab] = useState<'tiket' | 'sertifikat' | 'statistik' | 'chat'>('tiket');
+  const [activeTab, setActiveTabVal] = useState<'tiket' | 'sertifikat' | 'statistik' | 'chat'>('tiket');
+  const setActiveTab = (tab: 'tiket' | 'sertifikat' | 'statistik' | 'chat') => {
+    setActiveTabVal(tab);
+    playClickSound();
+  };
+  const [chatDefaultEventId, setChatDefaultEventId] = useState<string>('general');
   
   // Participant search email defaults to user's email
   const [studentEmail, setStudentEmail] = useState(user.email);
@@ -477,18 +483,30 @@ export default function StudentDashboard({
                         </div>
 
                         {/* Booking management footer bar */}
-                        <div className="flex gap-2.5">
-                          {selectedTicket.status !== 'Attended' && (
+                        <div className="flex flex-wrap gap-2.5 items-center justify-between bg-slate-50 p-4 border border-slate-100 rounded-2xl">
+                          <div className="flex gap-2">
+                            {selectedTicket.status !== 'Attended' && (
+                              <button
+                                onClick={() => handleCancelRegistration(selectedTicket.id)}
+                                className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 font-sans cursor-pointer"
+                              >
+                                <span>Batalkan Booking</span>
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleCancelRegistration(selectedTicket.id)}
-                              className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 font-sans cursor-pointer"
+                              onClick={() => {
+                                setChatDefaultEventId(selectedTicket.eventId);
+                                setActiveTab('chat');
+                              }}
+                              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shrink-0 font-sans cursor-pointer shadow-sm"
                             >
-                              <span>Batalkan Booking</span>
+                              <MessageSquare className="h-4 w-4 text-pink-200" />
+                              <span>Diskusi & Chat Event (In-App)</span>
                             </button>
-                          )}
-                          <div className="flex-1 text-right">
+                          </div>
+                          <div className="text-right">
                             <span className="text-[10px] text-slate-400 font-sans leading-snug">
-                              E-Tiket ini sah untuk registrasi ulang pintu masuk kampus.
+                              Terhubung di web realtime.
                             </span>
                           </div>
                         </div>
@@ -800,7 +818,7 @@ export default function StudentDashboard({
 
           {activeTab === 'chat' && (
             <div className="animate-fade-in">
-              <ChatRoom user={user} events={events} participants={participants} />
+              <ChatRoom user={user} events={events} participants={participants} defaultEventId={chatDefaultEventId} />
             </div>
           )}
 

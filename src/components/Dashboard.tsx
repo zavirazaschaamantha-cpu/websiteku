@@ -18,6 +18,7 @@ import CertificateDesigner from './CertificateDesigner';
 import ChatRoom from './ChatRoom';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocFromServer, query } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
+import { playClickSound, playScanSuccessSound, playFailureSound } from '../utils/audio';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 
 interface DashboardProps {
@@ -34,7 +35,12 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
   
   // Navigation
   const [roleMode, setRoleMode] = useState<'panitia' | 'peserta'>(user.role === 'mahasiswa' ? 'peserta' : 'panitia');
-  const [activeTab, setActiveTab] = useState<'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas' | 'planner' | 'sertifikat' | 'chat'>('ringkasan');
+  const [activeTab, setActiveTabVal] = useState<'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas' | 'planner' | 'sertifikat' | 'chat'>('ringkasan');
+  const setActiveTab = (tab: 'ringkasan' | 'events' | 'peserta' | 'scanner' | 'saas' | 'planner' | 'sertifikat' | 'chat') => {
+    setActiveTabVal(tab);
+    playClickSound();
+  };
+  const [chatDefaultEventId, setChatDefaultEventId] = useState<string>('general');
   
   // Event filtration
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
@@ -518,6 +524,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
         success: false,
         message: 'Silakan masukkan atau klik salah satu kode tiket peserta untuk disimulasikan!'
       });
+      playFailureSound();
       return;
     }
 
@@ -527,6 +534,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
         success: false,
         message: `Kode tiket "${code}" tidak ditemukan dalam sistem kami.`
       });
+      playFailureSound();
       return;
     }
 
@@ -539,6 +547,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
         participant: matchedPart,
         event: matchedEvent
       });
+      playFailureSound();
       return;
     }
 
@@ -563,6 +572,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
       participant: { ...matchedPart, status: 'Attended', attendedAt: new Date().toISOString() },
       event: matchedEvent
     });
+    playScanSuccessSound();
   };
 
   const stopRealScanning = async () => {
@@ -1446,6 +1456,17 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
                           <Download className="h-3.5 w-3.5" />
                         </button>
                         <button
+                          title="Buka Chat Room Internal"
+                          onClick={() => {
+                            setChatDefaultEventId(ev.id);
+                            setActiveTab('chat');
+                          }}
+                          className="px-2.5 py-1.5 bg-pink-100 text-pink-700 hover:bg-pink-200 text-xs font-bold rounded-xl transition flex items-center gap-1 shrink-0"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Chat Web</span>
+                        </button>
+                        <button
                           onClick={() => {
                             setSelectedEventId(ev.id);
                             setActiveTab('peserta');
@@ -2270,7 +2291,7 @@ export default function Dashboard({ user, onLogout, onUpdateUserPlan, onViewPubl
 
         {/* TAB 8: KANAL CHAT LIVE */}
         {activeTab === 'chat' && (
-          <ChatRoom user={user} events={events} participants={participants} />
+          <ChatRoom user={user} events={events} participants={participants} defaultEventId={chatDefaultEventId} />
         )}
       </>
     )}

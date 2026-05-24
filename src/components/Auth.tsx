@@ -5,6 +5,7 @@ import { SaaSPlan, User as UserType } from '../types';
 import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { playKeyboardClick, playSuccessSound, playFailureSound, playClickSound } from '../utils/audio';
 
 interface AuthProps {
   initialMode: 'login' | 'signup';
@@ -29,8 +30,18 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
   const [plan, setPlan] = useState<SaaSPlan>(selectedPlan);
   const [selectedRole, setSelectedRole] = useState<'mahasiswa' | 'panitia'>('mahasiswa');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [errorVal, setErrorVal] = useState('');
+  const [successMsgVal, setSuccessMsgVal] = useState('');
+
+  const setError = (msg: string) => {
+    setErrorVal(msg);
+    if (msg) playFailureSound();
+  };
+
+  const setSuccessMsg = (msg: string) => {
+    setSuccessMsgVal(msg);
+    if (msg) playSuccessSound();
+  };
 
   const handleGoogleLogin = async () => {
     setError('');
@@ -481,15 +492,15 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md animate-fade-in">
         <div className="glass py-8 px-6 shadow-2xl rounded-3xl sm:px-10">
           
-          {error && (
+          {errorVal && (
             <div id="auth-error" className="mb-4 p-3 bg-red-500/25 border border-red-500/30 text-red-200 text-xs font-semibold rounded-xl">
-              {error}
+              {errorVal}
             </div>
           )}
 
-          {successMsg && (
+          {successMsgVal && (
             <div id="auth-success" className="mb-4 p-3 bg-green-500/25 border border-green-500/30 text-green-200 text-xs font-semibold rounded-xl">
-              {successMsg}
+              {successMsgVal}
             </div>
           )}
 
@@ -603,7 +614,7 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
                             type="text"
                             maxLength={6}
                             value={userEnteredOtp}
-                            onChange={(e) => setUserEnteredOtp(e.target.value)}
+                            onChange={(e) => { setUserEnteredOtp(e.target.value); playKeyboardClick(); }}
                             placeholder="Ketik 6-digit OTP simulasi"
                             className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm text-center font-mono font-bold tracking-widest transition"
                             required
@@ -622,7 +633,7 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
                           id="auth-reset-new-password"
                           type="password"
                           value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
+                          onChange={(e) => { setNewPassword(e.target.value); playKeyboardClick(); }}
                           placeholder="Masukkan sandi baru minimal 6 karakter"
                           className="block w-full pl-10 pr-3 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
                           required
@@ -837,7 +848,7 @@ export default function Auth({ initialMode, selectedPlan = 'basic', onAuthSucces
                     id="auth-password"
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); playKeyboardClick(); }}
                     placeholder="Masukkan minimal 6 karakter"
                     className="block w-full pl-10 pr-10 py-2.5 glass-input rounded-xl focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-pink-400 text-white placeholder-white/40 text-sm transition"
                     required
